@@ -8,9 +8,14 @@
  * nodes, new/removed connections) becomes an actionable delta.
  */
 
-import type { ArchitectureEdge, ArchitectureModel, ArchitectureNode } from './types';
+import type {
+  ArchitectureEdge,
+  ArchitectureGroup,
+  ArchitectureModel,
+  ArchitectureNode,
+} from './types';
 
-export type NodeChangeKind = 'name' | 'type' | 'description' | 'mapping';
+export type NodeChangeKind = 'name' | 'type' | 'description' | 'mapping' | 'group';
 
 export interface UpdatedNode {
   before: ArchitectureNode;
@@ -30,6 +35,8 @@ export interface ModelDelta {
   addedEdges: ArchitectureEdge[];
   removedEdges: ArchitectureEdge[];
   updatedEdges: UpdatedEdge[];
+  addedGroups: ArchitectureGroup[];
+  removedGroups: ArchitectureGroup[];
 }
 
 export function diffModels(base: ArchitectureModel, next: ArchitectureModel): ModelDelta {
@@ -63,7 +70,21 @@ export function diffModels(base: ArchitectureModel, next: ArchitectureModel): Mo
     }
   }
 
-  return { addedNodes, removedNodes, updatedNodes, addedEdges, removedEdges, updatedEdges };
+  const baseGroups = indexBy(base.groups, (g) => g.id);
+  const nextGroups = indexBy(next.groups, (g) => g.id);
+  const addedGroups = next.groups.filter((g) => !baseGroups.has(g.id));
+  const removedGroups = base.groups.filter((g) => !nextGroups.has(g.id));
+
+  return {
+    addedNodes,
+    removedNodes,
+    updatedNodes,
+    addedEdges,
+    removedEdges,
+    updatedEdges,
+    addedGroups,
+    removedGroups,
+  };
 }
 
 export function isEmptyDelta(delta: ModelDelta): boolean {
@@ -73,7 +94,9 @@ export function isEmptyDelta(delta: ModelDelta): boolean {
     delta.updatedNodes.length === 0 &&
     delta.addedEdges.length === 0 &&
     delta.removedEdges.length === 0 &&
-    delta.updatedEdges.length === 0
+    delta.updatedEdges.length === 0 &&
+    delta.addedGroups.length === 0 &&
+    delta.removedGroups.length === 0
   );
 }
 
@@ -98,6 +121,12 @@ export function summarizeDelta(delta: ModelDelta): string[] {
   for (const { after } of delta.updatedEdges) {
     lines.push(`Change protocol of ${after.source} → ${after.target} to ${after.protocol}`);
   }
+  for (const group of delta.addedGroups) {
+    lines.push(`Add bounded context "${group.name}" (${group.id})`);
+  }
+  for (const group of delta.removedGroups) {
+    lines.push(`Remove bounded context "${group.name}" (${group.id})`);
+  }
   return lines;
 }
 
@@ -108,6 +137,9 @@ function nodeChanges(before: ArchitectureNode, after: ArchitectureNode): NodeCha
   if (before.description !== after.description) changes.push('description');
   if (JSON.stringify(before.mapping ?? {}) !== JSON.stringify(after.mapping ?? {})) {
     changes.push('mapping');
+  }
+  if ((before.groupId ?? '') !== (after.groupId ?? '')) {
+    changes.push('group');
   }
   return changes;
 }

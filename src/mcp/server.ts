@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { NODE_TYPE_IDS } from '../shared/model/nodeTypes';
 import { PROTOCOL_IDS } from '../shared/model/protocols';
+import { groupColorForIndex } from '../shared/model/groups';
 import { summarizeModel } from '../shared/model/summary';
 import {
   AtlasStore,
@@ -190,6 +191,60 @@ server.registerTool(
       result: null,
     }));
     return text(`Disconnected ${source} → ${target}.`);
+  },
+);
+
+server.registerTool(
+  'assign_to_group',
+  {
+    description:
+      'Assign a component to a bounded context (domain), creating the context if it does not exist yet.',
+    inputSchema: { nodeId: z.string(), group: z.string() },
+  },
+  async ({ nodeId, group }) => {
+    const groupId = await store.mutate((model) => {
+      if (!findNode(model, nodeId)) {
+        throw new Error(`No node with id "${nodeId}".`);
+      }
+      let target = model.groups.find((g) => g.name.toLowerCase() === group.toLowerCase());
+      let groups = model.groups;
+      if (!target) {
+        target = {
+          id: makeUniqueId(model.groups.map((g) => g.id), group),
+          name: group,
+          color: groupColorForIndex(model.groups.length),
+        };
+        groups = [...model.groups, target];
+      }
+      const nodes = model.nodes.map((n) => (n.id === nodeId ? { ...n, groupId: target!.id } : n));
+      return { model: { ...model, nodes, groups }, result: target.id };
+    });
+    return text(`Assigned "${nodeId}" to context "${group}" (${groupId}).`);
+  },
+);
+
+server.registerTool(
+  'remove_from_group',
+  {
+    description: 'Remove a component from its bounded context.',
+    inputSchema: { nodeId: z.string() },
+  },
+  async ({ nodeId }) => {
+    await store.mutate((model) => ({
+      model: {
+        ...model,
+        nodes: model.nodes.map((n) => {
+          if (n.id !== nodeId) {
+            return n;
+          }
+          const rest = { ...n };
+          delete rest.groupId;
+          return rest;
+        }),
+      },
+      result: null,
+    }));
+    return text(`Removed "${nodeId}" from its context.`);
   },
 );
 

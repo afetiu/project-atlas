@@ -42,6 +42,23 @@ export interface ArchitectureNode {
   position: Position;
   /** Optional link to the code that realizes this component. */
   mapping?: NodeCodeMapping;
+  /** Optional bounded context / domain this component belongs to. */
+  groupId?: string;
+}
+
+/**
+ * A bounded context (a.k.a. domain / container): a logical grouping of
+ * components. Rendered as an auto-fitted region behind its members. Groups have
+ * no position of their own — the canvas computes their bounds from membership.
+ */
+export interface ArchitectureGroup {
+  id: string;
+  name: string;
+  description?: string;
+  /** Accent colour for the region; assigned from a palette when omitted. */
+  color?: string;
+  /** Optional link to the module/directory that realizes this context. */
+  mapping?: NodeCodeMapping;
 }
 
 /** A directed connection between two nodes, carrying a protocol. */
@@ -61,6 +78,7 @@ export interface ArchitectureModel {
   version: number;
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
+  groups: ArchitectureGroup[];
 }
 
 /** The schema version this build reads and writes. */
@@ -68,5 +86,5 @@ export const CURRENT_MODEL_VERSION = 1;
 
 /** An empty, valid model — used when no `atlas.yaml` exists yet. */
 export function createEmptyModel(): ArchitectureModel {
-  return { version: CURRENT_MODEL_VERSION, nodes: [], edges: [] };
+  return { version: CURRENT_MODEL_VERSION, nodes: [], edges: [], groups: [] };
 }

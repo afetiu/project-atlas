@@ -16,6 +16,7 @@ test('detects duplicate node ids', () => {
       { id: 'a', name: 'A2', type: 'service', description: '', position: { x: 0, y: 0 } },
     ],
     edges: [],
+    groups: [],
   };
   const result = validateModel(model);
   assert.equal(result.valid, false);
@@ -27,6 +28,7 @@ test('detects broken edges', () => {
     version: 1,
     nodes: [{ id: 'a', name: 'A', type: 'service', description: '', position: { x: 0, y: 0 } }],
     edges: [{ id: 'e', source: 'a', target: 'ghost', protocol: 'http' }],
+    groups: [],
   };
   const result = validateModel(model);
   assert.equal(result.valid, false);
@@ -41,8 +43,38 @@ test('unknown protocol is a warning, not an error', () => {
       { id: 'b', name: 'B', type: 'service', description: '', position: { x: 0, y: 0 } },
     ],
     edges: [{ id: 'e', source: 'a', target: 'b', protocol: 'smoke' as never }],
+    groups: [],
   };
   const result = validateModel(model);
   assert.equal(result.valid, true);
   assert.ok(result.issues.some((i) => i.severity === 'warning'));
+});
+
+test('detects duplicate group ids', () => {
+  const model: ArchitectureModel = {
+    version: 1,
+    nodes: [],
+    edges: [],
+    groups: [
+      { id: 'orders', name: 'Orders' },
+      { id: 'orders', name: 'Orders 2' },
+    ],
+  };
+  const result = validateModel(model);
+  assert.equal(result.valid, false);
+  assert.ok(result.issues.some((i) => /Duplicate group id/.test(i.message)));
+});
+
+test('warns on a node referencing a missing group', () => {
+  const model: ArchitectureModel = {
+    version: 1,
+    nodes: [
+      { id: 'a', name: 'A', type: 'service', description: '', position: { x: 0, y: 0 }, groupId: 'ghost' },
+    ],
+    edges: [],
+    groups: [],
+  };
+  const result = validateModel(model);
+  assert.equal(result.valid, true);
+  assert.ok(result.issues.some((i) => /missing group/.test(i.message)));
 });

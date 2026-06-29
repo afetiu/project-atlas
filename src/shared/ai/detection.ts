@@ -14,9 +14,11 @@
 import { NODE_TYPE_IDS, isNodeTypeId } from '../model/nodeTypes';
 import { PROTOCOL_IDS, DEFAULT_PROTOCOL, isProtocolId } from '../model/protocols';
 import { computeLayout } from '../model/layout';
+import { groupColorForIndex } from '../model/groups';
 import {
   CURRENT_MODEL_VERSION,
   type ArchitectureEdge,
+  type ArchitectureGroup,
   type ArchitectureModel,
   type ArchitectureNode,
   type NodeCodeMapping,
@@ -30,6 +32,8 @@ export interface DetectedNode {
   path?: string;
   language?: string;
   framework?: string;
+  /** Optional bounded context / domain name this component belongs to. */
+  group?: string;
 }
 
 export interface DetectedEdge {
@@ -65,6 +69,10 @@ export function buildDetectionSchema(): Record<string, unknown> {
             },
             language: { type: 'string' },
             framework: { type: 'string' },
+            group: {
+              type: 'string',
+              description: 'Bounded context / domain name, e.g. "Orders" or "Identity".',
+            },
           },
           required: ['id', 'name', 'type'],
         },
@@ -107,20 +115,40 @@ export function detectedToModel(
   const idMap = new Map<string, string>();
   const nodes: ArchitectureNode[] = [];
 
+  // Build groups from the distinct context names the model assigned.
+  const groups: ArchitectureGroup[] = [];
+  const groupIdByName = new Map<string, string>();
+  const groupIds = new Set<string>();
+  for (const raw of detected.nodes ?? []) {
+    const name = raw.group?.trim();
+    if (!name || groupIdByName.has(name.toLowerCase())) {
+      continue;
+    }
+    const id = uniqueId(slugify(name), groupIds);
+    groupIds.add(id);
+    groupIdByName.set(name.toLowerCase(), id);
+    groups.push({ id, name, color: groupColorForIndex(groups.length) });
+  }
+
   for (const raw of detected.nodes ?? []) {
     const originalId = (raw.id || raw.name || 'node').trim();
     const finalId = uniqueId(slugify(originalId), used);
     used.add(finalId);
     idMap.set(originalId, finalId);
 
-    nodes.push({
+    const node: ArchitectureNode = {
       id: finalId,
       name: (raw.name || originalId).trim(),
       type: isNodeTypeId(raw.type) ? raw.type : 'service',
       description: raw.description?.trim() ?? '',
       position: { x: 0, y: 0 },
       mapping: toMapping(raw),
-    });
+    };
+    const groupId = raw.group?.trim() ? groupIdByName.get(raw.group.trim().toLowerCase()) : undefined;
+    if (groupId) {
+      node.groupId = groupId;
+    }
+    nodes.push(node);
   }
 
   const nodeIds = new Set(nodes.map((n) => n.id));
@@ -154,7 +182,18 @@ export function detectedToModel(
     node.position = previous.get(node.id) ?? positions.get(node.id) ?? node.position;
   }
 
-  return { version: CURRENT_MODEL_VERSION, nodes, edges };
+  // Preserve colours for groups that already existed in the prior model.
+  const previousColor = new Map(
+    (options.preservePositionsFrom?.groups ?? []).map((g) => [g.id, g.color]),
+  );
+  for (const group of groups) {
+    const prior = previousColor.get(group.id);
+    if (prior) {
+      group.color = prior;
+    }
+  }
+
+  return { version: CURRENT_MODEL_VERSION, nodes, edges, groups };
 }
 
 function toMapping(raw: DetectedNode): NodeCodeMapping | undefined {

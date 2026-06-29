@@ -41,6 +41,7 @@ export function buildChatSchema(): Record<string, unknown> {
       path: { type: 'string' },
       language: { type: 'string' },
       framework: { type: 'string' },
+      group: { type: 'string', description: 'Bounded context / domain name.' },
     },
     required: ['id', 'name', 'type'],
   };

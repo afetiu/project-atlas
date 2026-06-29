@@ -30,6 +30,9 @@ export function buildDetectionPrompt(): string {
     '- set "language" and "framework" when you can determine them',
     '',
     `For each connection choose a protocol from: ${PROTOCOLS_HINT}.`,
+    'Where the codebase has clear domains or bounded contexts (e.g. by top-level',
+    'directory or business capability), set each component\'s "group" to that',
+    'context name so related components are visually grouped.',
     'Prefer a focused model of the real architecture over an exhaustive file listing.',
     'Return only components that exist in the code.',
   ].join('\n');
@@ -84,13 +87,15 @@ export function buildCodegenPrompt(
 /** Strip positions before sending the model to the prompt — they are noise. */
 function toLeanModel(model: ArchitectureModel) {
   return {
-    nodes: model.nodes.map(({ id, name, type, description, mapping }) => ({
+    nodes: model.nodes.map(({ id, name, type, description, mapping, groupId }) => ({
       id,
       name,
       type,
       description,
       ...(mapping ? { mapping } : {}),
+      ...(groupId ? { groupId } : {}),
     })),
     edges: model.edges.map(({ source, target, protocol }) => ({ source, target, protocol })),
+    groups: model.groups.map(({ id, name, description }) => ({ id, name, description })),
   };
 }

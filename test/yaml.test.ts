@@ -19,16 +19,26 @@ const sample: ArchitectureModel = {
       position: { x: 1.234, y: 2 },
       mapping: { path: 'apps/web', language: 'typescript' },
     },
-    { id: 'api', name: 'API', type: 'service', description: '', position: { x: 10, y: 20 } },
+    {
+      id: 'api',
+      name: 'API',
+      type: 'service',
+      description: '',
+      position: { x: 10, y: 20 },
+      groupId: 'core',
+    },
   ],
   edges: [{ id: 'e1', source: 'web', target: 'api', protocol: 'http' }],
+  groups: [{ id: 'core', name: 'Core', color: '#7c93ff' }],
 };
 
-test('round-trips nodes, edges, and mapping', () => {
+test('round-trips nodes, edges, mapping, and groups', () => {
   const back = deserializeModel(serializeModel(sample));
   assert.equal(back.nodes.length, 2);
   assert.equal(back.edges.length, 1);
   assert.deepEqual(back.nodes[0].mapping, { path: 'apps/web', language: 'typescript' });
+  assert.equal(back.nodes[1].groupId, 'core');
+  assert.deepEqual(back.groups, [{ id: 'core', name: 'Core', color: '#7c93ff' }]);
 });
 
 test('rounds positions to two decimals', () => {

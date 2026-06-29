@@ -4,8 +4,12 @@ import { test } from 'node:test';
 import { diffModels, isEmptyDelta, summarizeDelta } from '../src/shared/model/diff';
 import type { ArchitectureModel } from '../src/shared/model/types';
 
-function model(nodes: ArchitectureModel['nodes'], edges: ArchitectureModel['edges'] = []): ArchitectureModel {
-  return { version: 1, nodes, edges };
+function model(
+  nodes: ArchitectureModel['nodes'],
+  edges: ArchitectureModel['edges'] = [],
+  groups: ArchitectureModel['groups'] = [],
+): ArchitectureModel {
+  return { version: 1, nodes, edges, groups };
 }
 
 const node = (id: string, over: Partial<ArchitectureModel['nodes'][number]> = {}) => ({
@@ -57,4 +61,13 @@ test('summarizeDelta renders human lines', () => {
   const lines = summarizeDelta(diffModels(a, b));
   assert.ok(lines.some((l) => /Add cache/.test(l)));
   assert.ok(lines.some((l) => /Remove service/.test(l)));
+});
+
+test('detects group changes and membership moves', () => {
+  const a = model([node('x')], [], []);
+  const b = model([node('x', { groupId: 'orders' })], [], [{ id: 'orders', name: 'Orders' }]);
+  const delta = diffModels(a, b);
+  assert.equal(delta.addedGroups[0].id, 'orders');
+  assert.deepEqual(delta.updatedNodes[0].changes, ['group']);
+  assert.ok(summarizeDelta(delta).some((l) => /Add bounded context/.test(l)));
 });

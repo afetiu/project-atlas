@@ -58,6 +58,32 @@ export function validateModel(model: ArchitectureModel): ValidationResult {
     }
   }
 
+  const seenGroupIds = new Set<string>();
+  for (const group of model.groups) {
+    if (!group.id) {
+      issues.push({ severity: 'error', message: 'A group is missing an id.' });
+      continue;
+    }
+    if (seenGroupIds.has(group.id)) {
+      issues.push({
+        severity: 'error',
+        message: `Duplicate group id "${group.id}".`,
+        entityId: group.id,
+      });
+    }
+    seenGroupIds.add(group.id);
+  }
+
+  for (const node of model.nodes) {
+    if (node.groupId && !seenGroupIds.has(node.groupId)) {
+      issues.push({
+        severity: 'warning',
+        message: `Node "${node.id}" references a missing group "${node.groupId}".`,
+        entityId: node.id,
+      });
+    }
+  }
+
   const seenEdgeIds = new Set<string>();
   for (const edge of model.edges) {
     if (edge.id && seenEdgeIds.has(edge.id)) {

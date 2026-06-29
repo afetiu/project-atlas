@@ -14,6 +14,7 @@ import {
   CURRENT_MODEL_VERSION,
   createEmptyModel,
   type ArchitectureEdge,
+  type ArchitectureGroup,
   type ArchitectureModel,
   type ArchitectureNode,
   type NodeCodeMapping,
@@ -39,7 +40,8 @@ export function serializeModel(model: ArchitectureModel): string {
       type: node.type,
       description: node.description,
       position: { x: round(node.position.x), y: round(node.position.y) },
-      // Only emit `mapping` when it carries information, keeping the file lean.
+      // Only emit optional fields when they carry information, keeping the file lean.
+      ...(node.groupId ? { groupId: node.groupId } : {}),
       ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
     })),
     edges: model.edges.map((edge) => ({
@@ -47,6 +49,13 @@ export function serializeModel(model: ArchitectureModel): string {
       source: edge.source,
       target: edge.target,
       protocol: edge.protocol,
+    })),
+    groups: model.groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      ...(group.description ? { description: group.description } : {}),
+      ...(group.color ? { color: group.color } : {}),
+      ...(hasMapping(group.mapping) ? { mapping: compactMapping(group.mapping!) } : {}),
     })),
   };
 
@@ -80,8 +89,9 @@ export function deserializeModel(text: string): ArchitectureModel {
   const version = typeof record.version === 'number' ? record.version : CURRENT_MODEL_VERSION;
   const nodes = Array.isArray(record.nodes) ? record.nodes.map(normalizeNode) : [];
   const edges = Array.isArray(record.edges) ? record.edges.map(normalizeEdge) : [];
+  const groups = Array.isArray(record.groups) ? record.groups.map(normalizeGroup) : [];
 
-  return { version, nodes, edges };
+  return { version, nodes, edges, groups };
 }
 
 function normalizeNode(raw: unknown, index: number): ArchitectureNode {
@@ -98,7 +108,33 @@ function normalizeNode(raw: unknown, index: number): ArchitectureNode {
   if (mapping) {
     node.mapping = mapping;
   }
+  const groupId = asString(record.groupId);
+  if (groupId) {
+    node.groupId = groupId;
+  }
   return node;
+}
+
+function normalizeGroup(raw: unknown, index: number): ArchitectureGroup {
+  const record = (raw ?? {}) as Record<string, unknown>;
+  const id = asString(record.id) || `group-${index}`;
+  const group: ArchitectureGroup = {
+    id,
+    name: asString(record.name) || id,
+  };
+  const description = asString(record.description);
+  if (description) {
+    group.description = description;
+  }
+  const color = asString(record.color);
+  if (color) {
+    group.color = color;
+  }
+  const mapping = normalizeMapping(record.mapping);
+  if (mapping) {
+    group.mapping = mapping;
+  }
+  return group;
 }
 
 function normalizeMapping(raw: unknown): NodeCodeMapping | undefined {

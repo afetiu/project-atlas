@@ -59,6 +59,24 @@ test('assigns non-trivial positions via layout', () => {
   assert.ok(b.position.x > a.position.x);
 });
 
+test('builds bounded contexts from group names and assigns membership', () => {
+  const detected: DetectedArchitecture = {
+    nodes: [
+      { id: 'a', name: 'A', type: 'service', group: 'Orders' },
+      { id: 'b', name: 'B', type: 'database', group: 'Orders' },
+      { id: 'c', name: 'C', type: 'service', group: 'Identity' },
+      { id: 'd', name: 'D', type: 'service' },
+    ],
+    edges: [],
+  };
+  const model = detectedToModel(detected);
+  assert.equal(model.groups.length, 2);
+  const orders = model.groups.find((g) => g.name === 'Orders')!;
+  assert.equal(model.nodes.filter((n) => n.groupId === orders.id).length, 2);
+  assert.equal(model.nodes.find((n) => n.id === 'd')!.groupId, undefined);
+  assert.ok(orders.color); // colour assigned
+});
+
 test('preserves existing positions when requested', () => {
   const previous: ArchitectureModel = {
     version: 1,
