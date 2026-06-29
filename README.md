@@ -38,8 +38,13 @@ read and write.
 - **Talk to an architecture copilot** — ask questions, or describe a change
   (“add a Redis cache in front of the orders DB”). The AI replies and can return
   a proposal to apply.
-- **Apply → generate code** — applying pending changes runs an agentic
-  code-generation pass and shows you the resulting **git diff** to review.
+- **Apply → generate code → verify** — applying pending changes runs an agentic
+  code-generation pass, shows you the resulting **git diff**, and **verifies**
+  the code realizes the change (mapped paths exist; an optional
+  `atlas.verifyCommand` like `npm run typecheck` passes). The architecture
+  baseline only advances on a verified match — otherwise the change stays
+  visibly pending. Code generation is sandboxed: **no shell**, and writes are
+  confined to the workspace.
 - **`atlas.yaml` as source of truth** — the canvas and file stay synchronized in
   both directions; everything auto-saves.
 - **Architecture rules** — built-in checks (a frontend reaching a datastore

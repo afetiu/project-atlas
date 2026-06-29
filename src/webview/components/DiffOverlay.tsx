@@ -25,6 +25,9 @@ export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JS
             ✕
           </button>
         </header>
+
+        <VerificationBanner report={result.verification} />
+
         <div className="atlas-modal__body">
           {result.diff ? (
             <DiffView diff={result.diff} />
@@ -48,6 +51,29 @@ export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JS
           </button>
         </footer>
       </div>
+    </div>
+  );
+}
+
+function VerificationBanner({ report }: { report: ApplyResult['verification'] }): JSX.Element | null {
+  if (report.checks.length === 0) {
+    return null;
+  }
+  return (
+    <div className={`atlas-verify ${report.ok ? 'atlas-verify--ok' : 'atlas-verify--fail'}`}>
+      <div className="atlas-verify__head">
+        {report.ok
+          ? '✓ Verified — the code realizes this architecture change.'
+          : '⚠ Unverified — the architecture change is still pending until the code matches.'}
+      </div>
+      <ul className="atlas-verify__list">
+        {report.checks.map((check, index) => (
+          <li key={index} className={check.ok ? 'atlas-verify__ok' : 'atlas-verify__bad'}>
+            {check.ok ? '✓' : '✕'} {check.label}
+            {check.detail && <span className="atlas-verify__detail"> — {check.detail}</span>}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

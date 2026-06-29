@@ -1290,3 +1290,46 @@ select.atlas-input {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------------- Codegen verification banner ---------------- */
+
+.atlas-verify {
+  margin: 0;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.atlas-verify--ok {
+  background: color-mix(in srgb, #4fd1a1 12%, var(--bg-elevated));
+}
+
+.atlas-verify--fail {
+  background: color-mix(in srgb, #f0a868 14%, var(--bg-elevated));
+}
+
+.atlas-verify__head {
+  font-weight: 550;
+  margin-bottom: 6px;
+}
+
+.atlas-verify__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.atlas-verify__ok {
+  color: var(--text-dim);
+}
+
+.atlas-verify__bad {
+  color: #ffc4c4;
+}
+
+.atlas-verify__detail {
+  color: var(--text-faint);
+}

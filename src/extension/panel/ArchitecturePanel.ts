@@ -26,6 +26,7 @@ import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/dif
 import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
 import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
+import { verifyCodegen } from '../ai/verify';
 import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
@@ -249,6 +250,7 @@ export class ArchitecturePanel {
           summary: 'No code-relevant changes.',
           diff: '',
           revertable: false,
+          verification: { ok: true, checks: [] },
         });
         await this.pushSyncStatus(target);
         return;
@@ -264,12 +266,22 @@ export class ArchitecturePanel {
       );
       const diff = await getWorkingTreeDiff(this.deps.cwd, result.touchedFiles);
       this.lastApply = { baseline: base, files: result.touchedFiles };
-      await this.deps.baseline.set(target);
+
+      // Close the loop: only advance the baseline if the code is verified to
+      // realize the change. Otherwise it stays pending and the report explains.
+      const verifyCommand = vscode.workspace
+        .getConfiguration('atlas')
+        .get<string>('verifyCommand');
+      const verification = await verifyCodegen(this.deps.cwd, delta, target, verifyCommand);
+      if (verification.ok) {
+        await this.deps.baseline.set(target);
+      }
       this.post({
         type: 'apply:done',
         summary: result.summary,
         diff,
         revertable: result.touchedFiles.length > 0,
+        verification,
       });
       await this.pushSyncStatus(target);
     } catch (error) {

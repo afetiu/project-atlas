@@ -10,7 +10,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ChatTurn } from '../../shared/ai/chat';
-import type { AiJob, ChangeProposal } from '../../shared/messaging/protocol';
+import type {
+  AiJob,
+  ChangeProposal,
+  VerificationReport,
+} from '../../shared/messaging/protocol';
 import type { ArchitectureModel } from '../../shared/model/types';
 import { onHostMessage, postToHost } from '../vscodeApi';
 
@@ -31,6 +35,7 @@ export interface ApplyResult {
   summary: string;
   diff: string;
   revertable: boolean;
+  verification: VerificationReport;
 }
 
 export interface AiErrorState {
@@ -104,6 +109,7 @@ export function useAiSession(): AiSession {
             summary: message.summary,
             diff: message.diff,
             revertable: message.revertable,
+            verification: message.verification,
           });
           break;
       }

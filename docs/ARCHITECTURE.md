@@ -118,14 +118,23 @@ chat:send → ClaudeAgent.chat() [structured: reply + optional full target graph
          → chat:reply (+ proposal) → Assistant panel → user clicks Apply
 ```
 
-**Apply → code:**
+**Apply → code → verify:**
 
 ```
 apply:request(target) → write atlas.yaml + model:loaded
                       → delta = diff(baseline, target)
-                      → ClaudeAgent.generateCode() [Agent SDK: Edit/Write/Bash, streamed]
-                      → git diff → apply:done → DiffOverlay → advance baseline
+                      → ClaudeAgent.generateCode() [Agent SDK: Read/Edit/Write only,
+                          NO shell, writes confined to the workspace via canUseTool]
+                      → git diff (scoped to touched files)
+                      → verifyCodegen() [mapped paths exist + optional verify command]
+                      → advance baseline ONLY if verified → apply:done → DiffOverlay
 ```
+
+Code generation is sandboxed: shell is disabled and a `canUseTool` gate confines
+writes to the workspace, so every effect is inside the repo and revertable. The
+baseline advances only when the generated code is verified to realize the
+change; otherwise it stays pending and the report says what's missing — this is
+what keeps "the model is the source of truth" honest.
 
 Two mechanisms prevent feedback loops: `AtlasFileService` remembers the exact
 text it last wrote and ignores its own watcher events, and the webview applies

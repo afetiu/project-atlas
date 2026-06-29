@@ -76,13 +76,28 @@ export interface SyncStatusMessage {
   pendingSummary: string[];
 }
 
-/** Code generation finished; carries the resulting git diff. */
+/** A single post-codegen verification check. */
+export interface VerificationCheck {
+  label: string;
+  ok: boolean;
+  detail?: string;
+}
+
+/** Whether the generated code is verified to realize the architecture change. */
+export interface VerificationReport {
+  ok: boolean;
+  checks: VerificationCheck[];
+}
+
+/** Code generation finished; carries the resulting git diff and verification. */
 export interface ApplyDoneMessage {
   type: 'apply:done';
   summary: string;
   diff: string;
   /** Whether there are generated files that can be reverted. */
   revertable: boolean;
+  /** Result of verifying the generated code against the model. */
+  verification: VerificationReport;
 }
 
 export type HostToWebviewMessage =
