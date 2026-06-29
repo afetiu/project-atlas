@@ -1,0 +1,67 @@
+{
+  "name": "atlas",
+  "displayName": "Atlas",
+  "description": "A visual architecture workspace where the architecture model is the source of truth.",
+  "version": "0.1.0",
+  "publisher": "atlas",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/afetiu/project-atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/afetiu/project-atlas/issues"
+  },
+  "homepage": "https://github.com/afetiu/project-atlas#readme",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "architecture",
+    "diagram",
+    "canvas",
+    "design",
+    "yaml"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "atlas.openArchitecture",
+        "title": "Open Architecture",
+        "category": "Atlas"
+      }
+    ]
+  },
+  "activationEvents": [],
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "compile": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src --ext ts,tsx",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "reactflow": "^11.10.4",
+    "yaml": "^2.3.4"
+  }
+}

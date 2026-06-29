@@ -1,0 +1,13 @@
+# Source and tooling — only the built `dist/` ships in the VSIX.
+.vscode/**
+src/**
+docs/**
+node_modules/**
+.gitignore
+.eslintrc.json
+esbuild.js
+tsconfig.json
+**/*.map
+**/*.ts
+**/*.tsx
+atlas.example.yaml
