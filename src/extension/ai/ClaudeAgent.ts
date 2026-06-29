@@ -7,6 +7,8 @@
  * callback so the panel can relay it to the webview.
  */
 
+import { resolve, sep } from 'path';
+
 import type { Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import {
@@ -129,9 +131,16 @@ export class ClaudeAgent {
     onEvent: AgentEventHandler,
     abortController: AbortController,
   ): Promise<CodegenResult> {
+    // Security posture for code generation:
+    //  - shell is disabled entirely (no exfiltration / untrackable effects),
+    //  - only read tools are pre-approved,
+    //  - Edit/Write go through canUseTool, which confines them to the workspace.
+    // This keeps every filesystem effect inside the repo and revertable.
     const options = await this.baseOptions(cwd, abortController, {
-      allowedTools: ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash'],
-      permissionMode: 'acceptEdits',
+      allowedTools: ['Read', 'Glob', 'Grep'],
+      disallowedTools: ['Bash', 'BashOutput', 'KillShell'],
+      permissionMode: 'default',
+      canUseTool: codegenGuard(cwd),
       systemPrompt: { type: 'preset', preset: 'claude_code' },
     });
 
@@ -217,6 +226,41 @@ interface ContentBlock {
 function contentBlocks(message: Extract<SDKMessage, { type: 'assistant' }>): ContentBlock[] {
   const content = (message.message as { content?: unknown }).content;
   return Array.isArray(content) ? (content as ContentBlock[]) : [];
+}
+
+const READ_TOOLS = new Set(['Read', 'Glob', 'Grep', 'LS']);
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+
+function isInsideWorkspace(cwd: string, file: unknown): boolean {
+  if (typeof file !== 'string' || file.length === 0) {
+    return false;
+  }
+  const root = resolve(cwd);
+  const target = resolve(cwd, file);
+  return target === root || target.startsWith(root + sep);
+}
+
+/**
+ * Permission gate for code generation: allow reads, allow writes only inside
+ * the workspace, deny everything else (shell, network, out-of-workspace writes).
+ */
+function codegenGuard(cwd: string): NonNullable<Options['canUseTool']> {
+  return async (toolName, input) => {
+    if (READ_TOOLS.has(toolName)) {
+      return { behavior: 'allow', updatedInput: input };
+    }
+    if (WRITE_TOOLS.has(toolName)) {
+      const file = (input as Record<string, unknown>).file_path ?? (input as Record<string, unknown>).notebook_path;
+      if (isInsideWorkspace(cwd, file)) {
+        return { behavior: 'allow', updatedInput: input };
+      }
+      return {
+        behavior: 'deny',
+        message: `Atlas blocked a write outside the workspace: ${String(file)}`,
+      };
+    }
+    return { behavior: 'deny', message: `Atlas blocked tool "${toolName}" during code generation.` };
+  };
 }
 
 function collectTouchedFiles(message: SDKMessage, touched: Set<string>): void {
