@@ -5,8 +5,9 @@
 
 import * as vscode from 'vscode';
 
-import { toMarkdown, toMermaid } from '../../shared/export/diagram';
-import { deserializeModel } from '../../shared/serialization/yaml';
+import { toMarkdown, toMermaid, toSvg } from '../../shared/export/diagram';
+import { applyLayout, deserializeModel } from '../../shared/serialization/yaml';
+import { ATLAS_LAYOUT_FILE_NAME } from '../workspace/AtlasFileService';
 
 export const EXPORT_COMMAND = 'atlas.export';
 
@@ -28,14 +29,44 @@ export function registerExportCommand(): vscode.Disposable {
       return;
     }
 
+    // Merge in saved canvas positions so the SVG matches what the user laid out.
+    try {
+      const layoutUri = vscode.Uri.joinPath(workspaceFolder.uri, ATLAS_LAYOUT_FILE_NAME);
+      const layoutBytes = await vscode.workspace.fs.readFile(layoutUri);
+      model = applyLayout(model, new TextDecoder().decode(layoutBytes));
+    } catch {
+      // No sidecar — toSvg falls back to auto-layout.
+    }
+
     const format = await vscode.window.showQuickPick(
       [
         { label: 'Mermaid', detail: 'A flowchart diagram for Markdown/docs' },
         { label: 'Markdown', detail: 'A full document with diagram and component table' },
+        { label: 'SVG', detail: 'A vector image of the diagram, saved to a file' },
       ],
       { title: 'Export architecture as…' },
     );
     if (!format) {
+      return;
+    }
+
+    if (format.label === 'SVG') {
+      const target = await vscode.window.showSaveDialog({
+        title: 'Export architecture as SVG',
+        defaultUri: vscode.Uri.joinPath(workspaceFolder.uri, 'architecture.svg'),
+        filters: { 'SVG image': ['svg'] },
+      });
+      if (!target) {
+        return;
+      }
+      await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(toSvg(model)));
+      const open = await vscode.window.showInformationMessage(
+        'Architecture exported to SVG.',
+        'Open',
+      );
+      if (open === 'Open') {
+        await vscode.commands.executeCommand('vscode.open', target);
+      }
       return;
     }
 
