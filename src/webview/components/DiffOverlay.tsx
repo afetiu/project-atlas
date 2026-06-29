@@ -1,0 +1,62 @@
+/**
+ * Modal overlay that shows the git diff produced by code generation, so the
+ * user can review exactly what changed before keeping or reverting it (revert
+ * happens through normal VS Code source control — Atlas only surfaces the diff).
+ */
+
+import type { ApplyResult } from '../model/useAiSession';
+
+interface DiffOverlayProps {
+  result: ApplyResult;
+  onClose: () => void;
+}
+
+export function DiffOverlay({ result, onClose }: DiffOverlayProps): JSX.Element {
+  return (
+    <div className="atlas-overlay" role="dialog" aria-modal="true">
+      <div className="atlas-modal">
+        <header className="atlas-modal__header">
+          <div>
+            <div className="atlas-modal__title">Changes applied</div>
+            <div className="atlas-modal__subtitle">{result.summary || 'Code generated.'}</div>
+          </div>
+          <button type="button" className="atlas-icon-button" onClick={onClose} aria-label="Close">
+            ✕
+          </button>
+        </header>
+        <div className="atlas-modal__body">
+          {result.diff ? (
+            <DiffView diff={result.diff} />
+          ) : (
+            <div className="atlas-modal__empty">No file changes were produced.</div>
+          )}
+        </div>
+        <footer className="atlas-modal__footer">
+          <button type="button" className="atlas-button" onClick={onClose}>
+            Done
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function DiffView({ diff }: { diff: string }): JSX.Element {
+  return (
+    <pre className="atlas-diff">
+      {diff.split('\n').map((line, index) => (
+        <div key={index} className={`atlas-diff__line ${diffClass(line)}`}>
+          {line || ' '}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
+function diffClass(line: string): string {
+  if (line.startsWith('+') && !line.startsWith('+++')) return 'atlas-diff__line--add';
+  if (line.startsWith('-') && !line.startsWith('---')) return 'atlas-diff__line--del';
+  if (line.startsWith('@@')) return 'atlas-diff__line--hunk';
+  if (line.startsWith('diff ') || line.startsWith('index ')) return 'atlas-diff__line--meta';
+  return '';
+}
