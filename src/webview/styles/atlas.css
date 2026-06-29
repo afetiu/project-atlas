@@ -1,0 +1,495 @@
+/*
+ * Atlas theme — dark-first, minimal, rounded.
+ *
+ * Design tokens live in :root so the palette can be retuned in one place.
+ * The aesthetic target is Linear + Raycast: low-chroma surfaces, a single
+ * restrained accent, soft shadows, generous radius, and quiet motion.
+ */
+
+:root {
+  --bg: #0c0c10;
+  --bg-elevated: #131318;
+  --bg-panel: #141419;
+  --surface: #1a1a21;
+  --surface-hover: #20202a;
+  --border: #26262f;
+  --border-strong: #33333f;
+  --text: #e7e7ee;
+  --text-dim: #9a9aa6;
+  --text-faint: #6a6a76;
+  --accent: #7c93ff;
+  --danger: #ff6b6b;
+  --radius-lg: 14px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-node: 0 2px 10px rgba(0, 0, 0, 0.4);
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
+  --transition: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------- Layout ---------------- */
+
+.atlas-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.atlas-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  flex: 0 0 auto;
+}
+
+.atlas-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.atlas-brand__mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--accent), #b69bff);
+  align-self: center;
+}
+
+.atlas-brand__name {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.atlas-brand__sub {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.atlas-topbar__meta {
+  color: var(--text-dim);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-workspace {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.atlas-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ---------------- Palette ---------------- */
+
+.atlas-palette {
+  width: 188px;
+  flex: 0 0 auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  padding: 14px 10px;
+  overflow-y: auto;
+}
+
+.atlas-palette__heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-faint);
+  padding: 0 6px 10px;
+}
+
+.atlas-palette__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.atlas-palette__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: grab;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.atlas-palette__item:hover {
+  background: var(--surface-hover);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.atlas-palette__item:active {
+  cursor: grabbing;
+}
+
+.atlas-palette__icon {
+  display: inline-flex;
+  color: var(--node-accent, var(--accent));
+}
+
+/* ---------------- Nodes ---------------- */
+
+.atlas-node {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 170px;
+  max-width: 240px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--surface), var(--bg-elevated));
+  box-shadow: var(--shadow-node);
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.atlas-node:hover {
+  border-color: var(--node-accent, var(--accent));
+}
+
+.atlas-node--selected {
+  border-color: var(--node-accent, var(--accent));
+  box-shadow: 0 0 0 1px var(--node-accent, var(--accent)), var(--shadow-soft);
+}
+
+.atlas-node__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  color: var(--node-accent, var(--accent));
+  background: color-mix(in srgb, var(--node-accent, var(--accent)) 14%, transparent);
+  flex: 0 0 auto;
+}
+
+.atlas-node__body {
+  min-width: 0;
+}
+
+.atlas-node__name {
+  font-weight: 550;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atlas-node__type {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+.atlas-handle {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--border-strong);
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.atlas-node:hover .atlas-handle,
+.react-flow__handle-connecting .atlas-handle {
+  border-color: var(--node-accent, var(--accent));
+}
+
+/* ---------------- Edges ---------------- */
+
+.react-flow__edge-path {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--accent);
+}
+
+.react-flow__edge-text {
+  fill: var(--text-dim);
+  font-size: 10px;
+  font-family: var(--font);
+}
+
+.react-flow__edge-textbg {
+  fill: var(--bg-elevated);
+}
+
+.react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+/* ---------------- Canvas chrome ---------------- */
+
+.atlas-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.react-flow {
+  background: var(--bg);
+}
+
+.atlas-controls {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+  border: 1px solid var(--border);
+}
+
+.atlas-controls button {
+  background: var(--surface);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  transition: background var(--transition), color var(--transition);
+}
+
+.atlas-controls button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.atlas-controls button svg {
+  fill: currentColor;
+}
+
+.atlas-minimap {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--bg-elevated) !important;
+}
+
+/* ---------------- Empty state ---------------- */
+
+.atlas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+  text-align: center;
+}
+
+.atlas-empty__title {
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--text-dim);
+}
+
+.atlas-empty__body {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* ---------------- Inspector ---------------- */
+
+.atlas-inspector {
+  width: 272px;
+  flex: 0 0 auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow-y: auto;
+}
+
+.atlas-inspector__content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.atlas-inspector__header {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.atlas-inspector__title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.atlas-inspector__subtitle {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atlas-inspector__empty {
+  padding: 28px 18px;
+  text-align: center;
+}
+
+.atlas-inspector__empty-title {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.atlas-inspector__empty-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  margin: 0;
+}
+
+.atlas-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.atlas-field__label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+.atlas-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.atlas-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.atlas-textarea {
+  resize: vertical;
+  min-height: 76px;
+  line-height: 1.5;
+}
+
+select.atlas-input {
+  appearance: none;
+  cursor: pointer;
+}
+
+.atlas-button {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.atlas-button:hover {
+  background: var(--surface-hover);
+}
+
+.atlas-button--danger {
+  color: var(--danger);
+}
+
+.atlas-button--danger:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
+
+/* ---------------- Banner ---------------- */
+
+.atlas-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--danger) 14%, var(--bg-elevated));
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.atlas-banner__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex: 0 0 auto;
+}
+
+/* ---------------- Scrollbars ---------------- */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #44444f;
+  background-clip: padding-box;
+}
