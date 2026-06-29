@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 
 import { AuthProvider } from '../ai/AuthProvider';
 import { ClaudeAgent } from '../ai/ClaudeAgent';
+import type { Logger } from '../log';
 import { ArchitecturePanel } from '../panel/ArchitecturePanel';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { BaselineStore } from '../workspace/BaselineStore';
@@ -17,7 +18,7 @@ import { BaselineStore } from '../workspace/BaselineStore';
 export const OPEN_ARCHITECTURE_COMMAND = 'atlas.openArchitecture';
 
 /** Open (or focus) the architecture panel for the first workspace folder. */
-export function openArchitecture(context: vscode.ExtensionContext): boolean {
+export function openArchitecture(context: vscode.ExtensionContext, logger: Logger): boolean {
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   if (!workspaceFolder) {
     void vscode.window.showErrorMessage(
@@ -34,14 +35,16 @@ export function openArchitecture(context: vscode.ExtensionContext): boolean {
     baseline: new BaselineStore(context.workspaceState, workspaceFolder),
     workspaceFolder,
     cwd: workspaceFolder.uri.fsPath,
+    logger,
   });
   return true;
 }
 
 export function registerOpenArchitectureCommand(
   context: vscode.ExtensionContext,
+  logger: Logger,
 ): vscode.Disposable {
   return vscode.commands.registerCommand(OPEN_ARCHITECTURE_COMMAND, () =>
-    openArchitecture(context),
+    openArchitecture(context, logger),
   );
 }

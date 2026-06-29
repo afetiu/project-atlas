@@ -12,13 +12,16 @@ import { registerAiCommands } from './commands/aiCommands';
 import { registerExportCommand } from './commands/exportCommands';
 import { registerMcpCommand } from './commands/mcpCommands';
 import { registerOpenArchitectureCommand } from './commands/openArchitecture';
+import { Logger } from './log';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const logger = new Logger();
   context.subscriptions.push(
-    registerOpenArchitectureCommand(context),
+    logger,
+    registerOpenArchitectureCommand(context, logger),
     registerMcpCommand(context),
     registerExportCommand(),
-    ...registerAiCommands(context),
+    ...registerAiCommands(context, logger),
   );
 }
 

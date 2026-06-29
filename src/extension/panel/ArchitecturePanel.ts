@@ -27,6 +27,7 @@ import { createEmptyModel, type ArchitectureModel } from '../../shared/model/typ
 import { validateModel } from '../../shared/serialization/validation';
 import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
 import { verifyCodegen } from '../ai/verify';
+import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
@@ -41,6 +42,7 @@ export interface PanelDependencies {
   baseline: BaselineStore;
   workspaceFolder: vscode.WorkspaceFolder;
   cwd: string;
+  logger: Logger;
 }
 
 export class ArchitecturePanel {
@@ -151,6 +153,7 @@ export class ArchitecturePanel {
     if (!this.begin('detect', label)) {
       return;
     }
+    this.deps.logger.info(`Detection started (${label}).`);
     try {
       // Preserve the current layout so re-running detection doesn't reshuffle
       // the canvas — only the architecture content is refreshed.
@@ -160,6 +163,9 @@ export class ArchitecturePanel {
         (event) => this.relay('detect', event),
         this.abortController!,
         previous,
+      );
+      this.deps.logger.info(
+        `Detection complete: ${model.nodes.length} components, ${model.edges.length} connections.`,
       );
       await this.deps.fileService.write(model);
       await this.deps.baseline.set(model);
@@ -278,6 +284,7 @@ export class ArchitecturePanel {
         return;
       }
 
+      this.deps.logger.info(`Code generation started for ${summarizeDelta(delta).length} change(s).`);
       const result = await this.deps.agent.generateCode(
         this.deps.cwd,
         delta,
@@ -295,6 +302,9 @@ export class ArchitecturePanel {
         .getConfiguration('atlas')
         .get<string>('verifyCommand');
       const verification = await verifyCodegen(this.deps.cwd, delta, target, verifyCommand);
+      this.deps.logger.info(
+        `Code generation complete: ${result.touchedFiles.length} file(s) touched, verification ${verification.ok ? 'PASSED' : 'FAILED'}.`,
+      );
       if (verification.ok) {
         await this.deps.baseline.set(target);
       }
@@ -408,6 +418,7 @@ export class ArchitecturePanel {
   }
 
   private reportAiError(error: unknown): void {
+    this.deps.logger.error(error instanceof Error ? error.message : String(error));
     if (error instanceof AiError) {
       this.post({ type: 'ai:error', code: error.code, message: error.message });
       return;

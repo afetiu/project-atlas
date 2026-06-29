@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 
 import { AuthProvider } from '../ai/AuthProvider';
+import type { Logger } from '../log';
 import { ArchitecturePanel } from '../panel/ArchitecturePanel';
 import { openArchitecture } from './openArchitecture';
 
@@ -16,13 +17,16 @@ export const DETECT_COMMAND = 'atlas.detectArchitecture';
 export const SET_API_KEY_COMMAND = 'atlas.setApiKey';
 export const CLEAR_API_KEY_COMMAND = 'atlas.clearApiKey';
 
-export function registerAiCommands(context: vscode.ExtensionContext): vscode.Disposable[] {
+export function registerAiCommands(
+  context: vscode.ExtensionContext,
+  logger: Logger,
+): vscode.Disposable[] {
   const auth = new AuthProvider(context.secrets);
 
   return [
     vscode.commands.registerCommand(DETECT_COMMAND, () => {
       // Ensure the panel exists, then ask it to detect.
-      if (openArchitecture(context)) {
+      if (openArchitecture(context, logger)) {
         ArchitecturePanel.detect();
       }
     }),
