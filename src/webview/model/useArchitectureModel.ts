@@ -59,6 +59,8 @@ export interface ArchitectureModelApi {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  beginInteraction: () => void;
+  endInteraction: () => void;
 }
 
 const HISTORY_LIMIT = 100;
@@ -111,6 +113,39 @@ export function useArchitectureModel(): ArchitectureModelApi {
     [schedulePersist, bumpHistory],
   );
 
+  /** Apply a transform without recording history (used for live drag frames). */
+  const commitNoHistory = useCallback(
+    (transform: (current: ArchitectureModel) => ArchitectureModel) => {
+      const next = transform(modelRef.current);
+      if (next === modelRef.current) {
+        return;
+      }
+      modelRef.current = next;
+      setModel(next);
+      schedulePersist(next);
+    },
+    [schedulePersist],
+  );
+
+  // A canvas interaction (e.g. a drag) is a single undoable step: snapshot at
+  // the start, push one history entry at the end if anything actually changed.
+  const interactionStart = useRef<ArchitectureModel | null>(null);
+  const beginInteraction = useCallback(() => {
+    interactionStart.current = modelRef.current;
+  }, []);
+  const endInteraction = useCallback(() => {
+    const start = interactionStart.current;
+    interactionStart.current = null;
+    if (start && start !== modelRef.current) {
+      undoStack.current.push(start);
+      if (undoStack.current.length > HISTORY_LIMIT) {
+        undoStack.current.shift();
+      }
+      redoStack.current = [];
+      bumpHistory();
+    }
+  }, [bumpHistory]);
+
   const undo = useCallback(() => {
     const previous = undoStack.current.pop();
     if (!previous) {
@@ -141,6 +176,12 @@ export function useArchitectureModel(): ArchitectureModelApi {
       switch (message.type) {
         case 'model:loaded':
           // Replace local state without persisting — this came *from* disk.
+          // Cancel any pending autosave so a stale local edit can't clobber the
+          // authoritative version we just received.
+          if (persistTimer.current) {
+            clearTimeout(persistTimer.current);
+            persistTimer.current = null;
+          }
           // History doesn't span external reloads, so reset it.
           modelRef.current = message.model;
           setModel(message.model);
@@ -202,14 +243,16 @@ export function useArchitectureModel(): ArchitectureModelApi {
         return;
       }
       const byId = new Map(moves.map((move) => [move.id, move.position]));
-      commit((current) => ({
+      // Live drag frames update position without flooding the undo stack; the
+      // surrounding begin/endInteraction records one entry for the whole drag.
+      commitNoHistory((current) => ({
         ...current,
         nodes: current.nodes.map((node) =>
           byId.has(node.id) ? { ...node, position: byId.get(node.id)! } : node,
         ),
       }));
     },
-    [commit],
+    [commitNoHistory],
   );
 
   const removeNodes = useCallback(
@@ -356,5 +399,7 @@ export function useArchitectureModel(): ArchitectureModelApi {
     redo,
     canUndo: undoStack.current.length > 0,
     canRedo: redoStack.current.length > 0,
+    beginInteraction,
+    endInteraction,
   };
 }

@@ -48,6 +48,8 @@ export class ArchitecturePanel {
   private readonly disposables: vscode.Disposable[] = [];
   private abortController: AbortController | undefined;
   private busy = false;
+  /** Timestamp of the last edit received from the webview, for auto-sync safety. */
+  private lastWebviewEditAt = 0;
   /** State needed to revert the most recent code generation. */
   private lastApply: { baseline: ArchitectureModel; files: string[] } | undefined;
 
@@ -98,6 +100,7 @@ export class ArchitecturePanel {
         await this.pushModelToWebview();
         break;
       case 'model:changed':
+        this.lastWebviewEditAt = Date.now();
         await this.persistModel(message.model);
         await this.pushSyncStatus(message.model);
         break;
@@ -174,6 +177,11 @@ export class ArchitecturePanel {
    */
   private async onRepoChanged(): Promise<void> {
     if (this.busy) {
+      return;
+    }
+    // Don't auto re-detect right after a canvas edit — the user's change may
+    // still be in the webview's debounce and not yet on disk.
+    if (Date.now() - this.lastWebviewEditAt < 4000) {
       return;
     }
     const { model } = await this.deps.fileService.read();
@@ -254,7 +262,7 @@ export class ArchitecturePanel {
         (event) => this.relay('codegen', event),
         this.abortController!,
       );
-      const diff = await getWorkingTreeDiff(this.deps.cwd);
+      const diff = await getWorkingTreeDiff(this.deps.cwd, result.touchedFiles);
       this.lastApply = { baseline: base, files: result.touchedFiles };
       await this.deps.baseline.set(target);
       this.post({
@@ -302,10 +310,17 @@ export class ArchitecturePanel {
   }
 
   private async pushModelToWebview(): Promise<void> {
-    const { model, error } = await this.deps.fileService.read();
+    const { model, error, readOnly } = await this.deps.fileService.read();
     if (error) {
       this.post({ type: 'model:error', message: error });
       return;
+    }
+    if (readOnly) {
+      this.post({
+        type: 'model:error',
+        message:
+          'This atlas.yaml was written by a newer version of Atlas. It is read-only until you update the extension.',
+      });
     }
     // First open of an existing map assumes the code already matches it.
     if (!this.deps.baseline.get()) {

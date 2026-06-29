@@ -21,6 +21,7 @@ import { groupColorForIndex } from '../shared/model/groups';
 import { summarizeModel } from '../shared/model/summary';
 import { evaluateRules } from '../shared/rules/rules';
 import {
+  assertSafePath,
   AtlasStore,
   coerceNodeType,
   coerceProtocol,
@@ -86,6 +87,9 @@ server.registerTool(
     },
   },
   async ({ name, type, description, path }) => {
+    if (path) {
+      assertSafePath(path);
+    }
     const id = await store.mutate((model) => {
       const newId = makeUniqueId(
         model.nodes.map((n) => n.id),
@@ -118,6 +122,9 @@ server.registerTool(
     },
   },
   async (args) => {
+    if (args.path) {
+      assertSafePath(args.path);
+    }
     await store.mutate((model) => {
       if (!findNode(model, args.id)) {
         throw new Error(`No node with id "${args.id}".`);

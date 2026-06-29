@@ -60,6 +60,22 @@ test('invalid YAML throws AtlasParseError', () => {
   assert.throws(() => deserializeModel('foo: ]['), AtlasParseError);
 });
 
+test('preserves unknown top-level and per-node keys across a round-trip', () => {
+  const source = [
+    'version: 1',
+    'owner: platform-team', // unknown top-level key
+    'nodes:',
+    '  - id: a',
+    '    type: service',
+    '    sla: 99.9', // unknown per-node key
+    'edges: []',
+    'groups: []',
+  ].join('\n');
+  const back = deserializeModel(serializeModel(deserializeModel(source)));
+  assert.equal(back.extra?.owner, 'platform-team');
+  assert.equal(back.nodes[0].extra?.sla, 99.9);
+});
+
 test('coerces unknown type and protocol to defaults', () => {
   const model = deserializeModel(
     'nodes:\n  - id: a\n    type: nope\nedges:\n  - id: e\n    source: a\n    target: a\n    protocol: smoke',

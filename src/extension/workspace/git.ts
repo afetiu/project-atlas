@@ -1,56 +1,70 @@
 /**
- * Captures the working-tree diff after code generation, so the user can review
- * exactly what the AI changed.
+ * Git helpers for the code-generation flow: capturing the working-tree diff and
+ * reverting exactly the files the agent produced.
  *
- * `git add -N` (intent-to-add) is used first so that newly created files show
- * up in `git diff` as additions without actually staging their contents — a
- * non-destructive way to include untracked files in the review.
+ * Safety properties:
+ *  - All git calls use `execFile` with argument arrays (no shell), so
+ *    agent-controlled filenames can never be interpreted as shell.
+ *  - Revert is confined to the workspace: a path that resolves outside `cwd`
+ *    is refused, so a stray absolute path from the agent can never delete an
+ *    arbitrary file.
  */
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { rm } from 'fs/promises';
+import { resolve, sep } from 'path';
 import { promisify } from 'util';
 
-const run = promisify(exec);
+const run = promisify(execFile);
 const MAX_DIFF_CHARS = 200_000;
+const BIG_BUFFER = { maxBuffer: 1024 * 1024 * 32 };
+
+/** True when `target` resolves to a path inside `root`. */
+function isInside(root: string, target: string): boolean {
+  const resolvedRoot = resolve(root);
+  const resolvedTarget = resolve(root, target);
+  return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(resolvedRoot + sep);
+}
 
 /**
- * Revert a specific set of files produced by code generation:
+ * Revert the files produced by code generation:
  *  - tracked files are restored to their committed state,
  *  - newly created files are unstaged and deleted.
- * Scoped to exactly the files the agent touched, so unrelated work is safe.
+ * Files that resolve outside the workspace are refused outright.
  */
 export async function revertFiles(cwd: string, files: string[]): Promise<void> {
   for (const file of files) {
+    if (!isInside(cwd, file)) {
+      // Never touch anything outside the workspace, whatever the agent named.
+      continue;
+    }
+    const absolute = resolve(cwd, file);
     try {
-      await run(`git ls-files --error-unmatch -- ${quote(file)}`, { cwd });
-      // Tracked → restore committed contents.
-      await run(`git checkout HEAD -- ${quote(file)}`, { cwd });
+      await run('git', ['ls-files', '--error-unmatch', '--', absolute], { cwd });
+      await run('git', ['checkout', 'HEAD', '--', absolute], { cwd }); // tracked → restore
     } catch {
-      // Untracked → unstage any intent-to-add and remove the file.
-      await run(`git reset -q -- ${quote(file)}`, { cwd }).catch(() => undefined);
-      await rm(file, { force: true }).catch(() => undefined);
+      await run('git', ['reset', '-q', '--', absolute], { cwd }).catch(() => undefined);
+      await rm(absolute, { force: true }).catch(() => undefined); // untracked → remove
     }
   }
 }
 
-function quote(p: string): string {
-  return `'${p.replace(/'/g, `'\\''`)}'`;
-}
-
-export async function getWorkingTreeDiff(cwd: string): Promise<string> {
+/**
+ * Capture the working-tree diff. Intent-to-add is scoped to the files the agent
+ * touched (when known) rather than the whole repo, so we don't pollute the
+ * user's index with unrelated untracked files.
+ */
+export async function getWorkingTreeDiff(cwd: string, touchedFiles: string[] = []): Promise<string> {
   try {
-    await run('git add -N -- .', { cwd, maxBuffer: 1024 * 1024 * 32 }).catch(() => undefined);
-    const { stdout } = await run('git --no-pager diff', {
-      cwd,
-      maxBuffer: 1024 * 1024 * 32,
-    });
-    if (stdout.length > MAX_DIFF_CHARS) {
-      return `${stdout.slice(0, MAX_DIFF_CHARS)}\n… diff truncated …`;
+    const contained = touchedFiles.filter((file) => isInside(cwd, file)).map((file) => resolve(cwd, file));
+    if (contained.length > 0) {
+      await run('git', ['add', '-N', '--', ...contained], { cwd, ...BIG_BUFFER }).catch(() => undefined);
     }
-    return stdout;
+    const { stdout } = await run('git', ['--no-pager', 'diff'], { cwd, ...BIG_BUFFER });
+    return stdout.length > MAX_DIFF_CHARS
+      ? `${stdout.slice(0, MAX_DIFF_CHARS)}\n… diff truncated …`
+      : stdout;
   } catch {
-    // Not a git repo, or git unavailable — degrade gracefully.
-    return '';
+    return ''; // not a git repo, or git unavailable
   }
 }

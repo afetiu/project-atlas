@@ -8,8 +8,8 @@
  * the extension's file watcher, so the canvas updates live.
  */
 
-import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { readFile, rename, writeFile } from 'fs/promises';
+import { isAbsolute, join, normalize } from 'path';
 
 import { computeLayout } from '../shared/model/layout';
 import { isNodeTypeId, type NodeTypeId } from '../shared/model/nodeTypes';
@@ -20,6 +20,8 @@ import { validateModel } from '../shared/serialization/validation';
 
 export class AtlasStore {
   private readonly filePath: string;
+  /** Serializes mutate() calls within this process so they read-modify-write atomically. */
+  private chain: Promise<unknown> = Promise.resolve();
 
   constructor(workspaceDir: string) {
     this.filePath = join(workspaceDir, 'atlas.yaml');
@@ -34,19 +36,30 @@ export class AtlasStore {
     }
   }
 
-  /** Apply a transform, validate, and persist. Throws on an invalid result. */
-  async mutate<T>(
+  /**
+   * Apply a transform, validate, and persist. Calls are serialized so two MCP
+   * tool invocations can't lose each other's updates, and the write is atomic
+   * (temp file + rename) so a crash can't truncate atlas.yaml.
+   */
+  mutate<T>(
     transform: (model: ArchitectureModel) => { model: ArchitectureModel; result: T },
   ): Promise<T> {
-    const current = await this.read();
-    const { model, result } = transform(current);
-    const validation = validateModel(model);
-    if (!validation.valid) {
-      const messages = validation.issues.map((i) => i.message).join('; ');
-      throw new Error(`Resulting architecture is invalid: ${messages}`);
-    }
-    await writeFile(this.filePath, serializeModel(model), 'utf8');
-    return result;
+    const next = this.chain.then(async () => {
+      const current = await this.read();
+      const { model, result } = transform(current);
+      const validation = validateModel(model);
+      if (!validation.valid) {
+        const messages = validation.issues.map((i) => i.message).join('; ');
+        throw new Error(`Resulting architecture is invalid: ${messages}`);
+      }
+      const temp = `${this.filePath}.tmp`;
+      await writeFile(temp, serializeModel(model), 'utf8');
+      await rename(temp, this.filePath);
+      return result;
+    });
+    // Keep the chain alive even if this mutation rejects.
+    this.chain = next.catch(() => undefined);
+    return next;
   }
 }
 
@@ -90,4 +103,12 @@ export function makeUniqueId(existing: Iterable<string>, base: string): string {
 
 export function findNode(model: ArchitectureModel, id: string): ArchitectureNode | undefined {
   return model.nodes.find((node) => node.id === id);
+}
+
+/** A mapping path must stay inside the workspace: relative, no `..` escape. */
+export function assertSafePath(path: string): void {
+  const norm = normalize(path).replace(/\\/g, '/');
+  if (isAbsolute(path) || norm === '..' || norm.startsWith('../')) {
+    throw new Error(`Path "${path}" must be workspace-relative and not escape the workspace.`);
+  }
 }

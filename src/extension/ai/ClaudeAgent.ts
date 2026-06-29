@@ -114,8 +114,10 @@ export class ClaudeAgent {
       }
     }
 
-    const response = (structured ?? { reply: '' }) as ChatResponse;
-    return response;
+    if (!structured || typeof (structured as ChatResponse).reply !== 'string') {
+      throw new AiError('failed', 'Claude returned no response.');
+    }
+    return structured as ChatResponse;
   }
 
   /** Generate code that realizes an architecture change, streaming progress. */

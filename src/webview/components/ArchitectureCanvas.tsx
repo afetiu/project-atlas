@@ -89,8 +89,18 @@ export function ArchitectureCanvas({
   onToggleCollapse,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
-  const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode, setNodeGroup } =
-    api;
+  const {
+    model,
+    moveNodes,
+    removeNodes,
+    removeEdges,
+    removeGroups,
+    addEdge,
+    addNode,
+    setNodeGroup,
+    beginInteraction,
+    endInteraction,
+  } = api;
 
   // Hovering a node highlights it and its direct neighbours, dimming the rest.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -223,8 +233,11 @@ export function ArchitectureCanvas({
   );
 
   // Drag a component into a region to join that bounded context (or out to leave).
+  const handleNodeDragStart = useCallback(() => beginInteraction(), [beginInteraction]);
+
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
+      endInteraction();
       if (node.id.startsWith(GROUP_ID_PREFIX)) {
         return;
       }
@@ -279,6 +292,7 @@ export function ArchitectureCanvas({
         onConnect={handleConnect}
         onSelectionChange={handleSelectionChange}
         onNodeDoubleClick={handleNodeDoubleClick}
+        onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
         onNodeMouseEnter={handleNodeMouseEnter}
         onNodeMouseLeave={handleNodeMouseLeave}

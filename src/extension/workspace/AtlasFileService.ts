@@ -18,7 +18,11 @@ import {
   deserializeModel,
   serializeModel,
 } from '../../shared/serialization/yaml';
-import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
+import {
+  CURRENT_MODEL_VERSION,
+  createEmptyModel,
+  type ArchitectureModel,
+} from '../../shared/model/types';
 
 export const ATLAS_FILE_NAME = 'atlas.yaml';
 
@@ -26,6 +30,8 @@ export interface ReadResult {
   model: ArchitectureModel;
   /** Present when the file exists but could not be parsed. */
   error?: string;
+  /** True when the file was written by a newer Atlas and must not be overwritten. */
+  readOnly?: boolean;
 }
 
 export class AtlasFileService implements vscode.Disposable {
@@ -35,6 +41,12 @@ export class AtlasFileService implements vscode.Disposable {
 
   /** Last text we wrote, used to ignore our own change notifications. */
   private lastWrittenText: string | undefined;
+
+  /** Serializes write() calls so they never interleave. */
+  private writeChain: Promise<void> = Promise.resolve();
+
+  /** Set when the on-disk file is a newer schema than this build understands. */
+  private futureVersion = false;
 
   /** Fired when `atlas.yaml` changes on disk due to an external edit. */
   readonly onDidChangeExternally = this.changeEmitter.event;
@@ -69,7 +81,9 @@ export class AtlasFileService implements vscode.Disposable {
 
     const text = new TextDecoder().decode(bytes);
     try {
-      return { model: deserializeModel(text) };
+      const model = deserializeModel(text);
+      this.futureVersion = model.version > CURRENT_MODEL_VERSION;
+      return this.futureVersion ? { model, readOnly: true } : { model };
     } catch (error) {
       const message =
         error instanceof AtlasParseError ? error.message : 'Failed to read atlas.yaml.';
@@ -77,14 +91,34 @@ export class AtlasFileService implements vscode.Disposable {
     }
   }
 
-  /** Serialize and persist a model, skipping the write if nothing changed. */
-  async write(model: ArchitectureModel): Promise<void> {
-    const text = serializeModel(model);
-    if (text === this.lastWrittenText) {
+  /**
+   * Serialize and persist a model. Writes are:
+   *  - serialized through a promise chain (no interleaving),
+   *  - atomic (write a temp file, then rename over the target),
+   *  - echo-marked only *after* success, so a failed write can't poison the
+   *    skip check or the watcher's echo suppression.
+   */
+  write(model: ArchitectureModel): Promise<void> {
+    this.writeChain = this.writeChain.then(() => this.writeNow(model)).catch(() => undefined);
+    return this.writeChain;
+  }
+
+  private async writeNow(model: ArchitectureModel): Promise<void> {
+    if (this.futureVersion) {
+      // Refuse to overwrite a file written by a newer Atlas — doing so would
+      // strip fields this build doesn't understand.
       return;
     }
+    const text = serializeModel(model);
+    if (text === this.lastWrittenText) {
+      return; // nothing changed since the last *successful* write
+    }
+    const bytes = new TextEncoder().encode(text);
+    const tempUri = this.fileUri.with({ path: `${this.fileUri.path}.tmp` });
+    await vscode.workspace.fs.writeFile(tempUri, bytes);
+    await vscode.workspace.fs.rename(tempUri, this.fileUri, { overwrite: true });
+    // Only now is the write durable — record the echo marker.
     this.lastWrittenText = text;
-    await vscode.workspace.fs.writeFile(this.fileUri, new TextEncoder().encode(text));
   }
 
   private async handleFileSystemEvent(): Promise<void> {

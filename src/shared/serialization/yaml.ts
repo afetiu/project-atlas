@@ -43,12 +43,14 @@ export function serializeModel(model: ArchitectureModel): string {
       // Only emit optional fields when they carry information, keeping the file lean.
       ...(node.groupId ? { groupId: node.groupId } : {}),
       ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
+      ...(node.extra ?? {}),
     })),
     edges: model.edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       protocol: edge.protocol,
+      ...(edge.extra ?? {}),
     })),
     groups: model.groups.map((group) => ({
       id: group.id,
@@ -56,7 +58,9 @@ export function serializeModel(model: ArchitectureModel): string {
       ...(group.description ? { description: group.description } : {}),
       ...(group.color ? { color: group.color } : {}),
       ...(hasMapping(group.mapping) ? { mapping: compactMapping(group.mapping!) } : {}),
+      ...(group.extra ?? {}),
     })),
+    ...(model.extra ?? {}),
   };
 
   return stringify(document, { indent: 2, lineWidth: 0 });
@@ -90,8 +94,9 @@ export function deserializeModel(text: string): ArchitectureModel {
   const nodes = Array.isArray(record.nodes) ? record.nodes.map(normalizeNode) : [];
   const edges = Array.isArray(record.edges) ? record.edges.map(normalizeEdge) : [];
   const groups = Array.isArray(record.groups) ? record.groups.map(normalizeGroup) : [];
+  const extra = extraOf(record, ['version', 'nodes', 'edges', 'groups']);
 
-  return { version, nodes, edges, groups };
+  return extra ? { version, nodes, edges, groups, extra } : { version, nodes, edges, groups };
 }
 
 function normalizeNode(raw: unknown, index: number): ArchitectureNode {
@@ -111,6 +116,18 @@ function normalizeNode(raw: unknown, index: number): ArchitectureNode {
   const groupId = asString(record.groupId);
   if (groupId) {
     node.groupId = groupId;
+  }
+  const extra = extraOf(record, [
+    'id',
+    'name',
+    'type',
+    'description',
+    'position',
+    'mapping',
+    'groupId',
+  ]);
+  if (extra) {
+    node.extra = extra;
   }
   return node;
 }
@@ -134,7 +151,25 @@ function normalizeGroup(raw: unknown, index: number): ArchitectureGroup {
   if (mapping) {
     group.mapping = mapping;
   }
+  const extra = extraOf(record, ['id', 'name', 'description', 'color', 'mapping']);
+  if (extra) {
+    group.extra = extra;
+  }
   return group;
+}
+
+/** Collect keys not in `known` so unknown/future fields survive a round-trip. */
+function extraOf(
+  record: Record<string, unknown>,
+  known: string[],
+): Record<string, unknown> | undefined {
+  const rest: Record<string, unknown> = {};
+  for (const key of Object.keys(record)) {
+    if (!known.includes(key)) {
+      rest[key] = record[key];
+    }
+  }
+  return Object.keys(rest).length > 0 ? rest : undefined;
 }
 
 function normalizeMapping(raw: unknown): NodeCodeMapping | undefined {
@@ -164,12 +199,17 @@ function hasMapping(mapping: NodeCodeMapping | undefined): boolean {
 
 function normalizeEdge(raw: unknown, index: number): ArchitectureEdge {
   const record = (raw ?? {}) as Record<string, unknown>;
-  return {
+  const edge: ArchitectureEdge = {
     id: asString(record.id) || `edge-${index}`,
     source: asString(record.source),
     target: asString(record.target),
     protocol: isProtocolId(record.protocol) ? record.protocol : DEFAULT_PROTOCOL,
   };
+  const extra = extraOf(record, ['id', 'source', 'target', 'protocol']);
+  if (extra) {
+    edge.extra = extra;
+  }
+  return edge;
 }
 
 function normalizePosition(raw: unknown): Position {

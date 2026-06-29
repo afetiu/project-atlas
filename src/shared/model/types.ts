@@ -33,6 +33,13 @@ export interface NodeCodeMapping {
   framework?: string;
 }
 
+/**
+ * Unknown keys preserved verbatim from `atlas.yaml`, so hand-added metadata and
+ * fields from a newer schema version survive a read/write round-trip instead of
+ * being silently dropped.
+ */
+export type ExtraFields = Record<string, unknown>;
+
 /** A single architecture component (service, database, queue, …). */
 export interface ArchitectureNode {
   id: string;
@@ -44,6 +51,7 @@ export interface ArchitectureNode {
   mapping?: NodeCodeMapping;
   /** Optional bounded context / domain this component belongs to. */
   groupId?: string;
+  extra?: ExtraFields;
 }
 
 /**
@@ -59,6 +67,7 @@ export interface ArchitectureGroup {
   color?: string;
   /** Optional link to the module/directory that realizes this context. */
   mapping?: NodeCodeMapping;
+  extra?: ExtraFields;
 }
 
 /** A directed connection between two nodes, carrying a protocol. */
@@ -67,6 +76,7 @@ export interface ArchitectureEdge {
   source: string;
   target: string;
   protocol: ProtocolId;
+  extra?: ExtraFields;
 }
 
 /**
@@ -79,6 +89,8 @@ export interface ArchitectureModel {
   nodes: ArchitectureNode[];
   edges: ArchitectureEdge[];
   groups: ArchitectureGroup[];
+  /** Unknown top-level keys (e.g. a future `views` block), preserved verbatim. */
+  extra?: ExtraFields;
 }
 
 /** The schema version this build reads and writes. */
