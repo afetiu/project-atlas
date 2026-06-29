@@ -83,7 +83,24 @@ export function toFlowGroups(model: ArchitectureModel): FlowGroupNode[] {
   });
 }
 
-function boundsOf(members: ArchitectureNode[]) {
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Region bounds per group id, for hit-testing drag-into-group. */
+export function groupBounds(model: ArchitectureModel): Map<string, Bounds> {
+  const result = new Map<string, Bounds>();
+  model.groups.forEach((group, index) => {
+    const members = model.nodes.filter((node) => node.groupId === group.id);
+    result.set(group.id, members.length > 0 ? boundsOf(members) : defaultBounds(index));
+  });
+  return result;
+}
+
+function boundsOf(members: ArchitectureNode[]): Bounds {
   const xs = members.map((m) => m.position.x);
   const ys = members.map((m) => m.position.y);
   const minX = Math.min(...xs);

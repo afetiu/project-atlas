@@ -12,6 +12,7 @@ import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import { evaluateRules, topSeverity, type RuleSeverity } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
+import { postToHost } from '../vscodeApi';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
 import { DiffOverlay } from './DiffOverlay';
@@ -76,6 +77,8 @@ export function App(): JSX.Element {
     setSelection({ nodeId: null, edgeId: id, groupId: null });
     setRightTab('inspector');
   }, []);
+
+  const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
@@ -172,6 +175,7 @@ export function App(): JSX.Element {
               selection={selection}
               onSelectionChange={selectOnCanvas}
               issueByNode={issueByNode}
+              onOpenFile={openFile}
             />
           </ReactFlowProvider>
           {model.nodes.length === 0 && !ai.status.busy && (
@@ -224,6 +228,7 @@ export function App(): JSX.Element {
               onCreateContext={handleCreateContext}
               onUpdateGroup={api.updateGroup}
               onDeleteGroup={handleDeleteGroup}
+              onOpenFile={openFile}
             />
           ) : (
             <AssistantPanel

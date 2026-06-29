@@ -119,6 +119,24 @@ export class ArchitecturePanel {
       case 'auth:configure':
         await vscode.commands.executeCommand('atlas.setApiKey');
         break;
+      case 'open:file':
+        await this.openMappedPath(message.path);
+        break;
+    }
+  }
+
+  /** Open a mapped file, or reveal it in the Explorer if it's a directory. */
+  private async openMappedPath(relativePath: string): Promise<void> {
+    const uri = vscode.Uri.joinPath(this.deps.workspaceFolder.uri, relativePath);
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (stat.type === vscode.FileType.Directory) {
+        await vscode.commands.executeCommand('revealInExplorer', uri);
+      } else {
+        await vscode.window.showTextDocument(uri, { preview: true });
+      }
+    } catch {
+      void vscode.window.showWarningMessage(`Atlas could not find "${relativePath}".`);
     }
   }
 

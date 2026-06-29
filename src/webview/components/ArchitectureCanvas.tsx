@@ -27,10 +27,12 @@ import {
   ARCHITECTURE_GROUP_TYPE,
   ARCHITECTURE_NODE_TYPE,
   GROUP_ID_PREFIX,
+  groupBounds,
   toFlowEdges,
   toFlowGroups,
   toFlowNodes,
 } from '../adapters/reactFlowAdapter';
+import type { Node as FlowNodeType } from 'reactflow';
 import type { ArchitectureModelApi } from '../model/useArchitectureModel';
 import { ArchitectureNodeView } from './ArchitectureNodeView';
 import { FloatingEdge } from './FloatingEdge';
@@ -48,6 +50,7 @@ interface ArchitectureCanvasProps {
   selection: Selection;
   onSelectionChange: (selection: Selection) => void;
   issueByNode: Map<string, RuleSeverity>;
+  onOpenFile: (path: string) => void;
 }
 
 const nodeTypes = {
@@ -62,9 +65,11 @@ export function ArchitectureCanvas({
   selection,
   onSelectionChange,
   issueByNode,
+  onOpenFile,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
-  const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode } = api;
+  const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode, setNodeGroup } =
+    api;
 
   // Derive React Flow state from the model, applying the current selection.
   // Group regions are listed first so they render behind the components.
@@ -147,6 +152,39 @@ export function ArchitectureCanvas({
     [onSelectionChange],
   );
 
+  const handleNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: FlowNodeType) => {
+      const path = (node.data as { node?: { mapping?: { path?: string } } })?.node?.mapping?.path;
+      if (path) {
+        onOpenFile(path);
+      }
+    },
+    [onOpenFile],
+  );
+
+  // Drag a component into a region to join that bounded context (or out to leave).
+  const handleNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: FlowNodeType) => {
+      if (node.id.startsWith(GROUP_ID_PREFIX)) {
+        return;
+      }
+      const cx = node.position.x + (node.width ?? 210) / 2;
+      const cy = node.position.y + (node.height ?? 60) / 2;
+      let targetGroup: string | null = null;
+      for (const [groupId, b] of groupBounds(model)) {
+        if (cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height) {
+          targetGroup = groupId;
+          break;
+        }
+      }
+      const current = model.nodes.find((n) => n.id === node.id)?.groupId ?? null;
+      if (targetGroup !== current) {
+        setNodeGroup(node.id, targetGroup);
+      }
+    },
+    [model, setNodeGroup],
+  );
+
   const handleDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -177,6 +215,8 @@ export function ArchitectureCanvas({
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         onSelectionChange={handleSelectionChange}
+        onNodeDoubleClick={handleNodeDoubleClick}
+        onNodeDragStop={handleNodeDragStop}
         fitView
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}

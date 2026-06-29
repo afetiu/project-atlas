@@ -1059,3 +1059,28 @@ select.atlas-input {
   border-color: var(--accent);
   color: var(--text);
 }
+
+/* ---------------- Inspector: source link ---------------- */
+
+.atlas-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12px;
+  text-align: left;
+}
+
+.atlas-source__path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.atlas-source__open {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-family: var(--font);
+}

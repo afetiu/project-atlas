@@ -29,6 +29,7 @@ interface InspectorPanelProps {
   onCreateContext: (nodeId: string) => void;
   onUpdateGroup: (id: string, edits: GroupEdits) => void;
   onDeleteGroup: (id: string) => void;
+  onOpenFile: (path: string) => void;
 }
 
 export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
@@ -56,6 +57,7 @@ function NodeInspector({
   onDeleteNode,
   onSetNodeGroup,
   onCreateContext,
+  onOpenFile,
 }: { node: ArchitectureNode } & InspectorPanelProps): JSX.Element {
   return (
     <div className="atlas-inspector__content">
@@ -120,6 +122,20 @@ function NodeInspector({
           onChange={(event) => onUpdateNode(node.id, { description: event.target.value })}
         />
       </Field>
+
+      {node.mapping?.path && (
+        <Field label="Source">
+          <button
+            type="button"
+            className="atlas-button atlas-source"
+            title={`Open ${node.mapping.path}`}
+            onClick={() => onOpenFile(node.mapping!.path!)}
+          >
+            <span className="atlas-source__path">{node.mapping.path}</span>
+            <span className="atlas-source__open">Open ↗</span>
+          </button>
+        </Field>
+      )}
 
       <button
         type="button"

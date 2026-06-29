@@ -147,6 +147,12 @@ export interface ConfigureAuthMessage {
   type: 'auth:configure';
 }
 
+/** Open (or reveal) the workspace file/directory a component maps to. */
+export interface OpenFileMessage {
+  type: 'open:file';
+  path: string;
+}
+
 export type WebviewToHostMessage =
   | WebviewReadyMessage
   | ModelChangedMessage
@@ -155,4 +161,5 @@ export type WebviewToHostMessage =
   | ApplyRequestMessage
   | ApplyRevertMessage
   | AiCancelMessage
-  | ConfigureAuthMessage;
+  | ConfigureAuthMessage
+  | OpenFileMessage;
