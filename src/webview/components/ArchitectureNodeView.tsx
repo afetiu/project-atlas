@@ -35,7 +35,10 @@ function ArchitectureNodeViewComponent({
         <div className="atlas-node__name" title={node.name}>
           {node.name || 'Untitled'}
         </div>
-        <div className="atlas-node__type">{definition.label}</div>
+        <div className="atlas-node__type">
+          {definition.label}
+          {mappingHint(node) && <span className="atlas-node__tech">{mappingHint(node)}</span>}
+        </div>
       </div>
 
       {data.issueSeverity && (
@@ -49,6 +52,18 @@ function ArchitectureNodeViewComponent({
       <Handle type="source" position={Position.Right} className="atlas-handle" />
     </div>
   );
+}
+
+/** A short tech hint shown next to the type (framework › language › path leaf). */
+function mappingHint(node: ArchitectureNodeData['node']): string | undefined {
+  const mapping = node.mapping;
+  if (!mapping) {
+    return undefined;
+  }
+  if (mapping.framework) return mapping.framework;
+  if (mapping.language) return mapping.language;
+  if (mapping.path) return mapping.path.split('/').pop();
+  return undefined;
 }
 
 export const ArchitectureNodeView = memo(ArchitectureNodeViewComponent);

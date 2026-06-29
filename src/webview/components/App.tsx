@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ReactFlowProvider } from 'reactflow';
+import { useReactFlow } from 'reactflow';
 
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import { evaluateRules, topSeverity, type RuleSeverity } from '../../shared/rules/rules';
@@ -15,6 +15,7 @@ import { useArchitectureModel } from '../model/useArchitectureModel';
 import { postToHost } from '../vscodeApi';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
+import { CommandPalette } from './CommandPalette';
 import { DiffOverlay } from './DiffOverlay';
 import { InspectorPanel } from './InspectorPanel';
 import { IssuesPanel } from './IssuesPanel';
@@ -29,11 +30,13 @@ type RightTab = 'inspector' | 'assistant' | 'issues';
 export function App(): JSX.Element {
   const api = useArchitectureModel();
   const ai = useAiSession();
+  const reactFlow = useReactFlow();
   const { model, error } = api;
 
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [rightTab, setRightTab] = useState<RightTab>('inspector');
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set());
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const spawnCount = useRef(0);
 
   const toggleCollapse = useCallback((groupId: string) => {
@@ -93,9 +96,36 @@ export function App(): JSX.Element {
 
   const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
 
+  // Select a node and pan/zoom to it, expanding its context first if collapsed.
+  const focusNode = useCallback(
+    (id: string) => {
+      const node = model.nodes.find((n) => n.id === id);
+      if (!node) {
+        return;
+      }
+      if (node.groupId && collapsedGroups.has(node.groupId)) {
+        toggleCollapse(node.groupId);
+      }
+      setSelection({ nodeId: id, edgeId: null, groupId: null });
+      setRightTab('inspector');
+      setTimeout(() => {
+        const rfNode = reactFlow.getNode(id);
+        const x = (rfNode?.position.x ?? node.position.x) + (rfNode?.width ?? 210) / 2;
+        const y = (rfNode?.position.y ?? node.position.y) + (rfNode?.height ?? 60) / 2;
+        reactFlow.setCenter(x, y, { zoom: 1.15, duration: 400 });
+      }, 60);
+    },
+    [model.nodes, collapsedGroups, toggleCollapse, reactFlow],
+  );
+
   // Undo/redo keyboard shortcuts — ignored while typing in a field.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+        return;
+      }
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
         return;
@@ -209,17 +239,15 @@ export function App(): JSX.Element {
         <Palette onAdd={handlePaletteAdd} />
 
         <main className="atlas-stage">
-          <ReactFlowProvider>
-            <ArchitectureCanvas
-              api={api}
-              selection={selection}
-              onSelectionChange={selectOnCanvas}
-              issueByNode={issueByNode}
-              onOpenFile={openFile}
-              collapsedGroups={collapsedGroups}
-              onToggleCollapse={toggleCollapse}
-            />
-          </ReactFlowProvider>
+          <ArchitectureCanvas
+            api={api}
+            selection={selection}
+            onSelectionChange={selectOnCanvas}
+            issueByNode={issueByNode}
+            onOpenFile={openFile}
+            collapsedGroups={collapsedGroups}
+            onToggleCollapse={toggleCollapse}
+          />
           {model.nodes.length === 0 && !ai.status.busy && (
             <div className="atlas-empty" aria-hidden="true">
               <div className="atlas-empty__title">Design your architecture</div>
@@ -289,6 +317,25 @@ export function App(): JSX.Element {
           result={ai.applyResult}
           onClose={ai.dismissApply}
           onRevert={ai.revertApply}
+        />
+      )}
+
+      {paletteOpen && (
+        <CommandPalette
+          model={model}
+          onClose={() => setPaletteOpen(false)}
+          onFocusNode={(id) => {
+            focusNode(id);
+            setPaletteOpen(false);
+          }}
+          onAddNode={(type) => {
+            handlePaletteAdd(type);
+            setPaletteOpen(false);
+          }}
+          onDetect={() => {
+            ai.detect();
+            setPaletteOpen(false);
+          }}
         />
       )}
     </div>

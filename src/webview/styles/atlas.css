@@ -1178,3 +1178,115 @@ select.atlas-input {
   color: var(--text);
   background: var(--surface-hover);
 }
+
+/* ---------------- Command palette ---------------- */
+
+.atlas-overlay--top {
+  align-items: flex-start;
+  padding-top: 12vh;
+}
+
+.atlas-palette-modal {
+  width: min(560px, 100%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.atlas-palette-modal__input {
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.atlas-palette-modal__list {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.atlas-palette-modal__empty {
+  padding: 18px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.atlas-command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.atlas-command--active {
+  background: var(--surface-hover);
+}
+
+.atlas-command__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-command__hint {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+/* ---------------- Hover focus + node tech chip ---------------- */
+
+.react-flow__node.atlas-faded,
+.react-flow__edge.atlas-faded {
+  opacity: 0.2;
+  transition: opacity var(--transition);
+}
+
+.react-flow__node {
+  transition: opacity var(--transition);
+}
+
+.react-flow__edge.atlas-edge-hl .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.atlas-node__type {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.atlas-node__tech {
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--surface-hover);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

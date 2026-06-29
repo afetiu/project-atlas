@@ -7,7 +7,7 @@
  * second source of truth for the graph inside the canvas.
  */
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -92,9 +92,28 @@ export function ArchitectureCanvas({
   const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode, setNodeGroup } =
     api;
 
+  // Hovering a node highlights it and its direct neighbours, dimming the rest.
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+
+  const baseEdges = useMemo(() => toFlowEdges(model, collapsedGroups), [model, collapsedGroups]);
+
+  const neighborIds = useMemo(() => {
+    if (!hoveredId) {
+      return null;
+    }
+    const set = new Set<string>([hoveredId]);
+    for (const edge of baseEdges) {
+      if (edge.source === hoveredId) set.add(edge.target);
+      if (edge.target === hoveredId) set.add(edge.source);
+    }
+    return set;
+  }, [hoveredId, baseEdges]);
+
   // Derive React Flow state from the model, applying the current selection.
   // Group regions are listed first so they render behind the components.
   const nodes = useMemo(() => {
+    const faded = (id: string) =>
+      neighborIds && !neighborIds.has(id) ? 'atlas-faded' : undefined;
     const groupNodes = toFlowGroups(model, collapsedGroups).map((group) => ({
       ...group,
       selected: group.id === `${GROUP_ID_PREFIX}${selection.groupId}`,
@@ -103,19 +122,29 @@ export function ArchitectureCanvas({
       ...node,
       draggable: false,
       selected: node.id === `${COLLAPSED_ID_PREFIX}${selection.groupId}`,
+      className: faded(node.id),
     }));
     const flowNodes = toFlowNodes(model, collapsedGroups).map((node) => ({
       ...node,
       selected: node.id === selection.nodeId,
+      className: faded(node.id),
       data: { ...node.data, issueSeverity: issueByNode.get(node.id) },
     }));
     return [...groupNodes, ...collapsedNodes, ...flowNodes];
-  }, [model, selection.nodeId, selection.groupId, issueByNode, collapsedGroups]);
+  }, [model, selection.nodeId, selection.groupId, issueByNode, collapsedGroups, neighborIds]);
 
   const edges = useMemo(() => {
-    const flowEdges = toFlowEdges(model, collapsedGroups);
-    return flowEdges.map((edge) => ({ ...edge, selected: edge.id === selection.edgeId }));
-  }, [model, selection.edgeId, collapsedGroups]);
+    return baseEdges.map((edge) => {
+      const incident = hoveredId
+        ? edge.source === hoveredId || edge.target === hoveredId
+        : true;
+      return {
+        ...edge,
+        selected: edge.id === selection.edgeId,
+        className: hoveredId ? (incident ? 'atlas-edge-hl' : 'atlas-faded') : undefined,
+      };
+    });
+  }, [baseEdges, selection.edgeId, hoveredId]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -174,6 +203,14 @@ export function ArchitectureCanvas({
     },
     [onSelectionChange],
   );
+
+  const handleNodeMouseEnter = useCallback((_event: React.MouseEvent, node: FlowNodeType) => {
+    // Highlight from components and collapsed contexts, not region backgrounds.
+    if (!node.id.startsWith(GROUP_ID_PREFIX)) {
+      setHoveredId(node.id);
+    }
+  }, []);
+  const handleNodeMouseLeave = useCallback(() => setHoveredId(null), []);
 
   const handleNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
@@ -243,6 +280,8 @@ export function ArchitectureCanvas({
         onSelectionChange={handleSelectionChange}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeDragStop={handleNodeDragStop}
+        onNodeMouseEnter={handleNodeMouseEnter}
+        onNodeMouseLeave={handleNodeMouseLeave}
         fitView
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}

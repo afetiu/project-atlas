@@ -4,6 +4,7 @@
  */
 
 import { createRoot } from 'react-dom/client';
+import { ReactFlowProvider } from 'reactflow';
 
 import { App } from './components/App';
 // React Flow base styles first, so Atlas theme overrides take precedence.
@@ -15,4 +16,8 @@ if (!container) {
   throw new Error('Atlas webview root element not found.');
 }
 
-createRoot(container).render(<App />);
+createRoot(container).render(
+  <ReactFlowProvider>
+    <App />
+  </ReactFlowProvider>,
+);
