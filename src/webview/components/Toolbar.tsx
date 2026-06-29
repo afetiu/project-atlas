@@ -38,6 +38,7 @@ export function Toolbar({
             className="atlas-button atlas-button--small"
             onClick={onUndo}
             disabled={!canUndo}
+            aria-label="Undo"
             title="Undo (Ctrl/Cmd+Z)"
           >
             ↶
@@ -47,6 +48,7 @@ export function Toolbar({
             className="atlas-button atlas-button--small"
             onClick={onRedo}
             disabled={!canRedo}
+            aria-label="Redo"
             title="Redo (Ctrl/Cmd+Shift+Z)"
           >
             ↷

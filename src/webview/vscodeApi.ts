@@ -25,6 +25,15 @@ export function postToHost(message: WebviewToHostMessage): void {
   api.postMessage(message);
 }
 
+/** Persisted view state (collapsed panels, filters) that survives a reload. */
+export function getViewState<T>(): T | undefined {
+  return api.getState<T>();
+}
+
+export function setViewState<T>(state: T): void {
+  api.setState<T>(state);
+}
+
 /** Subscribe to messages from the extension host. Returns an unsubscribe fn. */
 export function onHostMessage(handler: (message: HostToWebviewMessage) => void): () => void {
   const listener = (event: MessageEvent<HostToWebviewMessage>) => handler(event.data);

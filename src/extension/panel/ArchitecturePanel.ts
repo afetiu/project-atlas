@@ -358,17 +358,29 @@ export class ArchitecturePanel {
 
   /** Revert the files from the last apply and re-surface those changes as pending. */
   private async runRevert(): Promise<void> {
-    if (!this.lastApply || this.busy) {
+    if (this.busy) {
+      this.post({ type: 'apply:reverted', ok: false });
+      return;
+    }
+    if (!this.lastApply) {
+      this.post({ type: 'apply:reverted', ok: false });
       return;
     }
     const { baseline, files } = this.lastApply;
     this.lastApply = undefined;
-    await revertFiles(this.deps.cwd, files);
-    // The code no longer reflects the applied model, so roll the baseline back —
-    // the change shows up as pending again.
-    await this.deps.baseline.set(baseline);
-    const { model } = await this.deps.fileService.read();
-    await this.pushSyncStatus(model);
+    try {
+      await revertFiles(this.deps.cwd, files);
+      // The code no longer reflects the applied model, so roll the baseline back —
+      // the change shows up as pending again.
+      await this.deps.baseline.set(baseline);
+      const { model } = await this.deps.fileService.read();
+      await this.pushSyncStatus(model);
+      this.deps.logger.info(`Reverted ${files.length} generated file(s).`);
+      this.post({ type: 'apply:reverted', ok: true });
+    } catch (error) {
+      this.deps.logger.error(`Revert failed: ${String(error)}`);
+      this.post({ type: 'apply:reverted', ok: false });
+    }
   }
 
   /* ------------------------------- helpers ------------------------------ */

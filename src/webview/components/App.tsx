@@ -19,7 +19,7 @@ import {
 } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
-import { postToHost } from '../vscodeApi';
+import { getViewState, postToHost, setViewState } from '../vscodeApi';
 import { ApplyConfirm } from './ApplyConfirm';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
@@ -36,19 +36,45 @@ const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null }
 
 type RightTab = 'inspector' | 'assistant' | 'issues';
 
+/** View preferences persisted across reloads via the webview state API. */
+interface PersistedView {
+  rightTab?: RightTab;
+  collapsedGroups?: string[];
+  componentsCollapsed?: boolean;
+  sidebarCollapsed?: boolean;
+  typeFilter?: string[];
+}
+
 export function App(): JSX.Element {
   const api = useArchitectureModel();
   const ai = useAiSession();
   const reactFlow = useReactFlow();
   const { model, error } = api;
 
+  const persisted = useRef<PersistedView>(getViewState<PersistedView>() ?? {}).current;
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
-  const [rightTab, setRightTab] = useState<RightTab>('inspector');
-  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set());
+  const [rightTab, setRightTab] = useState<RightTab>(persisted.rightTab ?? 'inspector');
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
+    new Set(persisted.collapsedGroups ?? []),
+  );
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [componentsCollapsed, setComponentsCollapsed] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<ReadonlySet<NodeTypeId>>(new Set());
+  const [pendingRenameGroupId, setPendingRenameGroupId] = useState<string | null>(null);
+  const [componentsCollapsed, setComponentsCollapsed] = useState(persisted.componentsCollapsed ?? false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(persisted.sidebarCollapsed ?? false);
+  const [typeFilter, setTypeFilter] = useState<ReadonlySet<NodeTypeId>>(
+    new Set(persisted.typeFilter as NodeTypeId[] | undefined),
+  );
+  // Persist view preferences so a reload restores collapsed panels and filters.
+  useEffect(() => {
+    setViewState<PersistedView>({
+      rightTab,
+      collapsedGroups: [...collapsedGroups],
+      componentsCollapsed,
+      sidebarCollapsed,
+      typeFilter: [...typeFilter],
+    });
+  }, [rightTab, collapsedGroups, componentsCollapsed, sidebarCollapsed, typeFilter]);
+
   const toggleTypeFilter = useCallback((type: NodeTypeId) => {
     setTypeFilter((prev) => {
       const next = new Set(prev);
@@ -234,10 +260,22 @@ export function App(): JSX.Element {
 
   const handleDeleteGroup = useCallback(
     (id: string) => {
+      // Deleting a context detaches all its members — warn about the blast radius.
+      const memberCount = model.nodes.filter((n) => n.groupId === id).length;
+      if (memberCount > 0) {
+        const ok = window.confirm(
+          `Delete this context? Its ${memberCount} component${
+            memberCount === 1 ? '' : 's'
+          } will be detached (not deleted). You can undo this.`,
+        );
+        if (!ok) {
+          return;
+        }
+      }
       api.removeGroups([id]);
       setSelection(EMPTY_SELECTION);
     },
-    [api],
+    [api, model.nodes],
   );
 
   // Create a context from the node inspector, assign the node, and open the new
@@ -248,6 +286,7 @@ export function App(): JSX.Element {
       api.setNodeGroup(nodeId, id);
       setSelection({ nodeId: null, edgeId: null, groupId: id });
       setRightTab('inspector');
+      setPendingRenameGroupId(id);
     },
     [api],
   );
@@ -272,20 +311,39 @@ export function App(): JSX.Element {
           onCancel={ai.cancel}
         />
         <div className="atlas-topbar__meta">
-          {model.nodes.length} nodes · {model.edges.length} connections
-          {model.groups.length > 0 && ` · ${model.groups.length} contexts`}
+          <button
+            type="button"
+            className="atlas-button atlas-button--small atlas-topbar__search"
+            onClick={() => setPaletteOpen(true)}
+            title="Search components and run commands (Ctrl/Cmd+K)"
+          >
+            <span aria-hidden="true">⌘K</span> Search
+          </button>
+          <span className="atlas-topbar__counts">
+            {model.nodes.length} nodes · {model.edges.length} connections
+            {model.groups.length > 0 && ` · ${model.groups.length} contexts`}
+          </span>
         </div>
       </header>
 
       {error && <StatusBanner message={error} />}
+      {ai.notice && (
+        <StatusBanner
+          tone={ai.notice.tone === 'error' ? 'error' : 'info'}
+          message={ai.notice.text}
+          onDismiss={ai.dismissNotice}
+        />
+      )}
       {ai.driftedNodeIds.length > 0 && !ai.status.busy && (
         <StatusBanner
           tone="info"
           message={`${ai.driftedNodeIds.length} component${
             ai.driftedNodeIds.length === 1 ? '' : 's'
           } changed in code since the last detection.`}
-          actionLabel="Re-detect"
-          onAction={ai.detect}
+          actionLabel="Show drifted"
+          onAction={() => focusNode(ai.driftedNodeIds[0])}
+          secondaryActionLabel="Re-detect"
+          onSecondaryAction={ai.detect}
         />
       )}
       {ai.error && (
@@ -324,6 +382,19 @@ export function App(): JSX.Element {
             typeFilter={typeFilter}
           />
           <Legend model={model} activeFilter={typeFilter} onToggleFilter={toggleTypeFilter} />
+          {model.nodes.length === 0 && ai.status.busy && (
+            <div className="atlas-empty">
+              <div className="atlas-empty__title">
+                <span className="atlas-activity__spinner" aria-hidden="true" />{' '}
+                {ai.status.label ?? 'Analyzing repository…'}
+              </div>
+              {ai.progress.length > 0 && (
+                <div className="atlas-empty__body atlas-empty__progress">
+                  {ai.progress[ai.progress.length - 1]}
+                </div>
+              )}
+            </div>
+          )}
           {model.nodes.length === 0 && !ai.status.busy && (
             <div className="atlas-empty">
               <div className="atlas-empty__title">Design your architecture</div>
@@ -361,27 +432,30 @@ export function App(): JSX.Element {
           </button>
         ) : (
         <aside className="atlas-sidebar">
-          <div className="atlas-tabs" role="tablist">
-            <TabButton
-              label="Inspector"
-              active={rightTab === 'inspector'}
-              onClick={() => setRightTab('inspector')}
-            />
-            <TabButton
-              label="Assistant"
-              active={rightTab === 'assistant'}
-              onClick={() => setRightTab('assistant')}
-            />
-            <TabButton
-              label="Issues"
-              active={rightTab === 'issues'}
-              onClick={() => setRightTab('issues')}
-              badge={violations.length}
-            />
+          <div className="atlas-tabs">
+            <div className="atlas-tabs__list" role="tablist" aria-label="Inspector panels">
+              <TabButton
+                label="Inspector"
+                active={rightTab === 'inspector'}
+                onClick={() => setRightTab('inspector')}
+              />
+              <TabButton
+                label="Assistant"
+                active={rightTab === 'assistant'}
+                onClick={() => setRightTab('assistant')}
+              />
+              <TabButton
+                label="Issues"
+                active={rightTab === 'issues'}
+                onClick={() => setRightTab('issues')}
+                badge={violations.length}
+              />
+            </div>
             <button
               type="button"
               className="atlas-tabs__collapse"
               title="Hide panel"
+              aria-label="Hide panel"
               onClick={() => setSidebarCollapsed(true)}
             >
               ▸
@@ -408,6 +482,7 @@ export function App(): JSX.Element {
               onUpdateGroup={api.updateGroup}
               onDeleteGroup={handleDeleteGroup}
               onOpenFile={openFile}
+              autoFocusGroupName={!!selectedGroup && selectedGroup.id === pendingRenameGroupId}
             />
           ) : (
             <AssistantPanel
@@ -425,6 +500,7 @@ export function App(): JSX.Element {
       {ai.applyResult && (
         <DiffOverlay
           result={ai.applyResult}
+          reverting={ai.reverting}
           onClose={ai.dismissApply}
           onRevert={ai.revertApply}
         />

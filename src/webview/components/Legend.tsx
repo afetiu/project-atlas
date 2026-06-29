@@ -54,7 +54,7 @@ export function Legend({ model, activeFilter, onToggleFilter }: LegendProps): JS
           })}
           <div className="atlas-legend__divider" />
           <div className="atlas-legend__row">
-            <span className="atlas-legend__swatch" style={{ background: '#f0a868' }} />
+            <span className="atlas-legend__drift" aria-hidden="true">≠</span>
             <span>Drifted from code</span>
           </div>
           <div className="atlas-legend__row">

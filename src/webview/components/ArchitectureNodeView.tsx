@@ -20,11 +20,13 @@ function ArchitectureNodeViewComponent({
 }: NodeProps<ArchitectureNodeData>): JSX.Element {
   const { node } = data;
   const definition = getNodeTypeDefinition(node.type);
+  const openable = !!node.mapping?.path;
 
   return (
     <div
       className={`atlas-node${selected ? ' atlas-node--selected' : ''}`}
       style={{ ['--node-accent' as string]: definition.accent }}
+      title={openable ? `Double-click to open ${node.mapping?.path}` : undefined}
     >
       <Handle type="target" position={Position.Left} className="atlas-handle" />
 
@@ -33,7 +35,9 @@ function ArchitectureNodeViewComponent({
           className="atlas-node__drift"
           title="Code changed since the last detection"
           aria-label="drifted from code"
-        />
+        >
+          ≠
+        </span>
       )}
 
       <div className="atlas-node__icon">

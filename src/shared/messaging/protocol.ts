@@ -118,6 +118,12 @@ export interface ApplyDoneMessage {
   verification: VerificationReport;
 }
 
+/** The most recent code generation was reverted (files restored). */
+export interface ApplyRevertedMessage {
+  type: 'apply:reverted';
+  ok: boolean;
+}
+
 export type HostToWebviewMessage =
   | ModelLoadedMessage
   | ModelErrorMessage
@@ -129,7 +135,8 @@ export type HostToWebviewMessage =
   | SyncStatusMessage
   | DriftStatusMessage
   | RulesConfigMessage
-  | ApplyDoneMessage;
+  | ApplyDoneMessage
+  | ApplyRevertedMessage;
 
 /* ------------------------------------------------------------------ */
 /* Webview → extension host                                           */

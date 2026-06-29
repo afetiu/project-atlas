@@ -30,6 +30,8 @@ interface InspectorPanelProps {
   onUpdateGroup: (id: string, edits: GroupEdits) => void;
   onDeleteGroup: (id: string) => void;
   onOpenFile: (path: string) => void;
+  /** Focus+select the context name field (set right after creating a context). */
+  autoFocusGroupName?: boolean;
 }
 
 export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
@@ -152,13 +154,24 @@ function GroupInspector({
   group,
   onUpdateGroup,
   onDeleteGroup,
+  autoFocusGroupName,
 }: { group: ArchitectureGroup } & InspectorPanelProps): JSX.Element {
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (autoFocusGroupName) {
+      nameRef.current?.focus();
+      nameRef.current?.select();
+    }
+    // Re-focus when a different freshly-created context is selected.
+  }, [autoFocusGroupName, group.id]);
+
   return (
     <div className="atlas-inspector__content">
       <Header title="Bounded context" subtitle={group.id} />
 
       <Field label="Name">
         <input
+          ref={nameRef}
           className="atlas-input"
           type="text"
           value={group.name}

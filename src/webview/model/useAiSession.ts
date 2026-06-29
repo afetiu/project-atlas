@@ -46,6 +46,11 @@ export interface AiErrorState {
   message: string;
 }
 
+export interface AiNotice {
+  tone: 'info' | 'error';
+  text: string;
+}
+
 export interface AiSession {
   status: AiStatus;
   progress: string[];
@@ -54,6 +59,8 @@ export interface AiSession {
   driftedNodeIds: string[];
   customRules: ArchitectureRule[];
   applyResult: ApplyResult | null;
+  reverting: boolean;
+  notice: AiNotice | null;
   error: AiErrorState | null;
   detect: () => void;
   sendChat: (text: string) => void;
@@ -63,6 +70,7 @@ export interface AiSession {
   revertApply: () => void;
   dismissApply: () => void;
   dismissError: () => void;
+  dismissNotice: () => void;
 }
 
 const MAX_PROGRESS_LINES = 40;
@@ -76,6 +84,8 @@ export function useAiSession(): AiSession {
   const [rulesText, setRulesText] = useState('');
   const customRules = useMemo(() => compileRules(rulesText), [rulesText]);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
+  const [reverting, setReverting] = useState(false);
+  const [notice, setNotice] = useState<AiNotice | null>(null);
   const [error, setError] = useState<AiErrorState | null>(null);
 
   const nextId = useRef(1);
@@ -98,7 +108,9 @@ export function useAiSession(): AiSession {
           setProgress((prev) => [...prev, message.line].slice(-MAX_PROGRESS_LINES));
           break;
         case 'ai:error':
-          setError({ code: message.code, message: message.message });
+          // A user-initiated cancel isn't a failure — don't raise the red alarm
+          // banner for it; just settle any streaming bubble.
+          setError(message.code === 'cancelled' ? null : { code: message.code, message: message.message });
           // Finalize any in-flight streaming bubble so it doesn't spin forever.
           if (streamingId.current !== null) {
             setMessages((prev) =>
@@ -144,6 +156,15 @@ export function useAiSession(): AiSession {
             verification: message.verification,
           });
           break;
+        case 'apply:reverted':
+          setReverting(false);
+          if (message.ok) {
+            setApplyResult(null);
+            setNotice({ tone: 'info', text: 'Generated changes were reverted.' });
+          } else {
+            setNotice({ tone: 'error', text: 'Atlas could not revert the changes.' });
+          }
+          break;
       }
     });
   }, []);
@@ -159,13 +180,14 @@ export function useAiSession(): AiSession {
       role: m.role,
       content: m.content,
     }));
-    const assistantId = nextId.current + 1;
+    const userId = nextId.current++;
+    const assistantId = nextId.current++;
     streamingId.current = assistantId;
     streamRaw.current = '';
     setMessages((prev) => [
       ...prev,
-      { id: nextId.current++, role: 'user', content: trimmed },
-      { id: nextId.current++, role: 'assistant', content: '', streaming: true },
+      { id: userId, role: 'user', content: trimmed },
+      { id: assistantId, role: 'assistant', content: '', streaming: true },
     ]);
     postToHost({ type: 'chat:send', message: trimmed, history });
   }, []);
@@ -177,11 +199,14 @@ export function useAiSession(): AiSession {
   const cancel = useCallback(() => postToHost({ type: 'ai:cancel' }), []);
   const configureAuth = useCallback(() => postToHost({ type: 'auth:configure' }), []);
   const revertApply = useCallback(() => {
+    // Keep the diff overlay open in a busy state until the host confirms; the
+    // overlay closes only on a successful 'apply:reverted'.
+    setReverting(true);
     postToHost({ type: 'apply:revert' });
-    setApplyResult(null);
   }, []);
   const dismissApply = useCallback(() => setApplyResult(null), []);
   const dismissError = useCallback(() => setError(null), []);
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   return {
     status,
@@ -191,6 +216,8 @@ export function useAiSession(): AiSession {
     driftedNodeIds,
     customRules,
     applyResult,
+    reverting,
+    notice,
     error,
     detect,
     sendChat,
@@ -200,5 +227,6 @@ export function useAiSession(): AiSession {
     revertApply,
     dismissApply,
     dismissError,
+    dismissNotice,
   };
 }

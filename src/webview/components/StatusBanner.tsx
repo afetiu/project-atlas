@@ -8,6 +8,8 @@ interface StatusBannerProps {
   tone?: 'error' | 'info';
   actionLabel?: string;
   onAction?: () => void;
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
   onDismiss?: () => void;
 }
 
@@ -16,6 +18,8 @@ export function StatusBanner({
   tone = 'error',
   actionLabel,
   onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
   onDismiss,
 }: StatusBannerProps): JSX.Element {
   return (
@@ -25,6 +29,15 @@ export function StatusBanner({
       {actionLabel && onAction && (
         <button type="button" className="atlas-button atlas-button--small" onClick={onAction}>
           {actionLabel}
+        </button>
+      )}
+      {secondaryActionLabel && onSecondaryAction && (
+        <button
+          type="button"
+          className="atlas-button atlas-button--small"
+          onClick={onSecondaryAction}
+        >
+          {secondaryActionLabel}
         </button>
       )}
       {onDismiss && (

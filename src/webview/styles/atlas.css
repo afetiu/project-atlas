@@ -92,9 +92,22 @@ body {
 }
 
 .atlas-topbar__meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   color: var(--text-dim);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+.atlas-topbar__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atlas-topbar__counts {
+  white-space: nowrap;
 }
 
 .atlas-workspace {
@@ -369,6 +382,12 @@ body {
   color: var(--text-faint);
 }
 
+.atlas-empty__progress {
+  max-width: 420px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 /* ---------------- Inspector ---------------- */
 
 .atlas-inspector {
@@ -586,10 +605,17 @@ select.atlas-input {
 
 .atlas-tabs {
   display: flex;
+  align-items: center;
   gap: 2px;
   padding: 8px 8px 0;
   border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
+}
+
+.atlas-tabs__list {
+  display: flex;
+  gap: 2px;
+  flex: 1 1 auto;
 }
 
 .atlas-tab {
@@ -1466,13 +1492,33 @@ select.atlas-input {
 
 .atlas-node__drift {
   position: absolute;
-  top: -4px;
-  left: -4px;
-  width: 9px;
-  height: 9px;
+  top: -7px;
+  left: -7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #f0a868;
+  color: #1a1205;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
   border: 2px solid var(--bg-elevated);
+}
+
+.atlas-legend__drift {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #f0a868;
+  color: #1a1205;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 /* ---------------- Legend ---------------- */

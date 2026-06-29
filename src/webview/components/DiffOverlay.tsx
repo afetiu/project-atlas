@@ -1,7 +1,8 @@
 /**
  * Modal overlay that shows the git diff produced by code generation, so the
- * user can review exactly what changed before keeping or reverting it (revert
- * happens through normal VS Code source control — Atlas only surfaces the diff).
+ * user can review exactly what changed before keeping or reverting it. "Revert
+ * changes" restores the files this generation wrote and rolls the baseline back;
+ * the overlay stays open in a busy state until the host confirms.
  */
 
 import { useRef } from 'react';
@@ -11,13 +12,14 @@ import { useOverlay } from '../hooks/useOverlay';
 
 interface DiffOverlayProps {
   result: ApplyResult;
+  reverting: boolean;
   onClose: () => void;
   onRevert: () => void;
 }
 
-export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JSX.Element {
+export function DiffOverlay({ result, reverting, onClose, onRevert }: DiffOverlayProps): JSX.Element {
   const modalRef = useRef<HTMLDivElement>(null);
-  useOverlay(modalRef, onClose);
+  useOverlay(modalRef, reverting ? () => undefined : onClose);
   return (
     <div className="atlas-overlay" role="presentation" onMouseDown={onClose}>
       <div
@@ -54,12 +56,13 @@ export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JS
               type="button"
               className="atlas-button atlas-button--danger"
               onClick={onRevert}
+              disabled={reverting}
               title="Restore the files this generation changed"
             >
-              Revert changes
+              {reverting ? 'Reverting…' : 'Revert changes'}
             </button>
           )}
-          <button type="button" className="atlas-button" onClick={onClose}>
+          <button type="button" className="atlas-button" onClick={onClose} disabled={reverting}>
             Done
           </button>
         </footer>
