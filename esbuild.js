@@ -28,8 +28,13 @@ const extensionConfig = {
   outfile: 'dist/extension.js',
   platform: 'node',
   format: 'cjs',
-  // `vscode` is provided by the host at runtime and must never be bundled.
-  external: ['vscode'],
+  external: [
+    // Provided by the host at runtime.
+    'vscode',
+    // ESM-only and spawns the `claude` subprocess; bundling breaks its
+    // `import.meta.url` usage. Loaded at runtime via dynamic import() instead.
+    '@anthropic-ai/claude-agent-sdk',
+  ],
 };
 
 /** @type {import('esbuild').BuildOptions} */
