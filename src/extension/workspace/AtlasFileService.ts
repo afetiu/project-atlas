@@ -117,8 +117,12 @@ export class AtlasFileService implements vscode.Disposable {
    *    skip check or the watcher's echo suppression.
    */
   write(model: ArchitectureModel): Promise<void> {
-    this.writeChain = this.writeChain.then(() => this.writeNow(model)).catch(() => undefined);
-    return this.writeChain;
+    // Keep the serialization chain alive across failures, but return the
+    // *un-caught* promise so callers can actually observe a write failure (and
+    // not advance the baseline as if persistence succeeded).
+    const next = this.writeChain.then(() => this.writeNow(model));
+    this.writeChain = next.catch(() => undefined);
+    return next;
   }
 
   private async writeNow(model: ArchitectureModel): Promise<void> {

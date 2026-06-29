@@ -30,8 +30,25 @@ let queryFnPromise: Promise<QueryFn> | undefined;
 function loadQuery(): Promise<QueryFn> {
   if (!queryFnPromise) {
     queryFnPromise = import('@anthropic-ai/claude-agent-sdk').then((mod) => mod.query);
+    // Don't memoize a rejected import: a transient/first-run failure would
+    // otherwise wedge every later AI action until the extension host restarts.
+    queryFnPromise.catch(() => {
+      queryFnPromise = undefined;
+    });
   }
   return queryFnPromise;
+}
+
+// Watchdog ceilings so a wedged SDK subprocess can't pin the UI "busy" forever:
+// the timer aborts the run, which surfaces as a clean cancellation.
+const DETECT_TIMEOUT_MS = 5 * 60_000;
+const CHAT_TIMEOUT_MS = 5 * 60_000;
+const CODEGEN_TIMEOUT_MS = 15 * 60_000;
+
+/** Abort `controller` after `ms`; returns a disposer to cancel the watchdog. */
+function startWatchdog(controller: AbortController, ms: number): () => void {
+  const timer = setTimeout(() => controller.abort(), ms);
+  return () => clearTimeout(timer);
 }
 
 export type AgentEvent =
@@ -74,20 +91,34 @@ export class ClaudeAgent {
     });
 
     const query = await loadQuery();
+    const stopWatchdog = startWatchdog(abortController, DETECT_TIMEOUT_MS);
     let structured: unknown;
-    for await (const message of query({ prompt: buildDetectionPrompt(), options })) {
-      this.relayProgress(message, onEvent);
-      if (message.type === 'result') {
-        structured = this.requireSuccess(message).structured_output;
+    try {
+      for await (const message of query({ prompt: buildDetectionPrompt(), options })) {
+        this.relayProgress(message, onEvent);
+        if (message.type === 'result') {
+          structured = this.requireSuccess(message).structured_output;
+        }
       }
+    } catch (error) {
+      throw this.normalizeError(error, abortController);
+    } finally {
+      stopWatchdog();
     }
+    this.throwIfAborted(abortController);
 
     if (!structured) {
       throw new AiError('failed', 'Detection returned no architecture.');
     }
-    return detectedToModel(structured as DetectedArchitecture, {
+    const model = detectedToModel(structured as DetectedArchitecture, {
       preservePositionsFrom: previous,
     });
+    if (model.nodes.length === 0) {
+      // A zero-node result would silently overwrite a good architecture with an
+      // empty one — treat it as a failure the caller can recover from.
+      throw new AiError('failed', 'Detection found no components in this repository.');
+    }
+    return model;
   }
 
   /** Run one conversational turn, optionally returning a proposed model. */
@@ -109,25 +140,34 @@ export class ClaudeAgent {
     });
 
     const query = await loadQuery();
+    const stopWatchdog = startWatchdog(abortController, CHAT_TIMEOUT_MS);
     let full = '';
     let sawResult = false;
-    for await (const event of query({ prompt: composeChatPrompt(history, message), options })) {
-      if (event.type === 'stream_event') {
-        const delta = textDelta(event);
-        if (delta) {
-          full += delta;
-          onToken(delta);
+    try {
+      for await (const event of query({ prompt: composeChatPrompt(history, message), options })) {
+        if (event.type === 'stream_event') {
+          const delta = textDelta(event);
+          if (delta) {
+            full += delta;
+            onToken(delta);
+          }
+        } else if (event.type === 'assistant' && event.error) {
+          throw classifyAssistantError(event.error);
+        } else if (event.type === 'result') {
+          this.requireSuccess(event);
+          sawResult = true;
         }
-      } else if (event.type === 'assistant' && event.error === 'authentication_failed') {
-        throw new AiError('auth', 'Claude authentication failed.');
-      } else if (event.type === 'result') {
-        this.requireSuccess(event);
-        sawResult = true;
       }
+    } catch (error) {
+      throw this.normalizeError(error, abortController);
+    } finally {
+      stopWatchdog();
     }
-
-    if (!sawResult && full.length === 0) {
-      throw new AiError('failed', 'Claude returned no response.');
+    // A run that streamed text but never produced a successful result (aborted
+    // or truncated) must not be presented as a finished answer.
+    this.throwIfAborted(abortController);
+    if (!sawResult) {
+      throw new AiError('failed', 'Claude did not finish the response.');
     }
     return parseChatReply(full);
   }
@@ -155,22 +195,30 @@ export class ClaudeAgent {
     });
 
     const query = await loadQuery();
+    const stopWatchdog = startWatchdog(abortController, CODEGEN_TIMEOUT_MS);
     let summary = '';
     let sessionId: string | undefined;
     const touched = new Set<string>();
-    for await (const message of query({
-      prompt: buildCodegenPrompt(delta, model, instruction),
-      options,
-    })) {
-      this.relayProgress(message, onEvent);
-      collectTouchedFiles(message, touched);
-      if (message.type === 'system' && message.subtype === 'init') {
-        sessionId = message.session_id;
+    try {
+      for await (const message of query({
+        prompt: buildCodegenPrompt(delta, model, instruction),
+        options,
+      })) {
+        this.relayProgress(message, onEvent);
+        collectTouchedFiles(message, touched);
+        if (message.type === 'system' && message.subtype === 'init') {
+          sessionId = message.session_id;
+        }
+        if (message.type === 'result') {
+          summary = this.requireSuccess(message).result;
+        }
       }
-      if (message.type === 'result') {
-        summary = this.requireSuccess(message).result;
-      }
+    } catch (error) {
+      throw this.normalizeError(error, abortController);
+    } finally {
+      stopWatchdog();
     }
+    this.throwIfAborted(abortController);
     return { summary, sessionId, touchedFiles: [...touched] };
   }
 
@@ -198,8 +246,8 @@ export class ClaudeAgent {
 
   private relayProgress(message: SDKMessage, onEvent: AgentEventHandler): void {
     if (message.type === 'assistant') {
-      if (message.error === 'authentication_failed') {
-        throw new AiError('auth', 'Claude authentication failed.');
+      if (message.error) {
+        throw classifyAssistantError(message.error);
       }
       for (const block of contentBlocks(message)) {
         if (block.type === 'text' && block.text) {
@@ -212,17 +260,69 @@ export class ClaudeAgent {
   }
 
   private requireSuccess(message: Extract<SDKMessage, { type: 'result' }>) {
-    if (message.subtype === 'success' && !message.is_error) {
-      return message;
+    // Branch on is_error independently of subtype: a 'success' subtype can still
+    // carry is_error with an api_error_status, and the error subtypes carry an
+    // `errors` array. They are disjoint shapes, so read each from its own branch.
+    if (message.subtype === 'success') {
+      if (!message.is_error) {
+        return message;
+      }
+      const status = message.api_error_status ?? null;
+      if (status === 401 || status === 403) {
+        throw new AiError('auth', 'Claude authentication failed.');
+      }
+      throw new AiError('failed', `Claude run failed (API status ${status ?? 'error'}).`);
     }
-    const detail =
-      message.subtype === 'success'
-        ? `api status ${message.api_error_status ?? 'error'}`
-        : message.errors.join('; ');
+    const detail = message.errors.join('; ');
     if (/authentication|unauthorized|api key|401|403/i.test(detail)) {
       throw new AiError('auth', 'Claude authentication failed.');
     }
     throw new AiError('failed', `Claude run failed: ${detail || message.subtype}`);
+  }
+
+  /** Map an aborted/abort-like error to a clean cancellation; pass AiError through. */
+  private normalizeError(error: unknown, controller: AbortController): Error {
+    if (error instanceof AiError) {
+      return error;
+    }
+    if (controller.signal.aborted || isAbortError(error)) {
+      return new AiError('cancelled', 'Cancelled.');
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return new AiError('failed', `Claude run failed: ${message}`);
+  }
+
+  /** Convert a post-loop aborted signal into an explicit cancellation. */
+  private throwIfAborted(controller: AbortController): void {
+    if (controller.signal.aborted) {
+      throw new AiError('cancelled', 'Cancelled.');
+    }
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === 'AbortError' || /\babort(ed)?\b/i.test(error.message))
+  );
+}
+
+/** Map an assistant-level SDK error enum value to a classified AiError. */
+function classifyAssistantError(error: string): AiError {
+  switch (error) {
+    case 'authentication_failed':
+    case 'oauth_org_not_allowed':
+    case 'billing_error':
+      return new AiError('auth', `Claude authentication/billing error: ${error.replace(/_/g, ' ')}.`);
+    case 'rate_limit':
+    case 'overloaded':
+    case 'server_error':
+      return new AiError('failed', `Claude is temporarily unavailable (${error.replace(/_/g, ' ')}). Try again shortly.`);
+    case 'model_not_found':
+    case 'invalid_request':
+      return new AiError('failed', `Claude rejected the request (${error.replace(/_/g, ' ')}). Check the Atlas model setting.`);
+    default:
+      return new AiError('failed', `Claude error: ${error.replace(/_/g, ' ')}.`);
   }
 }
 

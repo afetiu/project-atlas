@@ -108,7 +108,9 @@ export class ArchitecturePanel {
     }
     switch (message.type) {
       case 'webview:ready':
-        await this.pushModelToWebview();
+        // The webview just (re)mounted with no state — always load, even if an
+        // edit was recently in flight before a reload.
+        await this.pushModelToWebview(true);
         break;
       case 'model:changed':
         this.lastWebviewEditAt = Date.now();
@@ -261,7 +263,13 @@ export class ArchitecturePanel {
           { nodes: response.proposal.nodes, edges: response.proposal.edges },
           { preservePositionsFrom: model },
         );
-        proposal = { summary: response.proposal.summary, model: target };
+        // The proposal is model-authored, untrusted content. Only surface it if
+        // it forms a valid graph; otherwise keep the prose and drop the proposal.
+        if (validateModel(target).valid && target.nodes.length > 0) {
+          proposal = { summary: response.proposal.summary, model: target };
+        } else {
+          this.deps.logger.info('Discarded an invalid chat proposal.');
+        }
       }
       this.post({ type: 'chat:reply', reply: response.reply, proposal });
     } catch (error) {
@@ -375,10 +383,26 @@ export class ArchitecturePanel {
       });
       return;
     }
-    await this.deps.fileService.write(model);
+    try {
+      await this.deps.fileService.write(model);
+    } catch (error) {
+      this.deps.logger.error(`Failed to save atlas.yaml: ${String(error)}`);
+      this.post({
+        type: 'model:error',
+        message: 'Atlas could not save your changes to disk.',
+      });
+    }
   }
 
-  private async pushModelToWebview(): Promise<void> {
+  private async pushModelToWebview(force = false): Promise<void> {
+    // A `model:loaded` push replaces the webview's model and clears its undo
+    // history. If the user has an edit still in flight (debounced in the webview,
+    // not yet persisted), an externally-triggered reload would discard it. Defer
+    // to the live edit unless this is an explicit (re)mount load.
+    if (!force && Date.now() - this.lastWebviewEditAt < 2000) {
+      this.deps.logger.info('Skipped an external reload to preserve an in-flight edit.');
+      return;
+    }
     const { model, error, readOnly } = await this.deps.fileService.read();
     if (error) {
       this.post({ type: 'model:error', message: error });
@@ -405,7 +429,10 @@ export class ArchitecturePanel {
   }
 
   private async pushSyncStatus(model: ArchitectureModel): Promise<void> {
-    const base = this.deps.baseline.get() ?? model;
+    // No baseline → diff against the empty model, so everything reads as pending
+    // (the honest state) rather than diffing the model against itself, which
+    // would always claim "in sync".
+    const base = this.deps.baseline.get() ?? createEmptyModel();
     const delta = diffModels(base, model);
     this.post({ type: 'sync:status', pendingSummary: summarizeDelta(delta) });
   }
