@@ -26,6 +26,7 @@ import { AssistantPanel } from './AssistantPanel';
 import { CommandPalette } from './CommandPalette';
 import { DiffOverlay } from './DiffOverlay';
 import { InspectorPanel } from './InspectorPanel';
+import { Legend } from './Legend';
 import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
@@ -296,6 +297,7 @@ export function App(): JSX.Element {
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleCollapse}
           />
+          <Legend model={model} />
           {model.nodes.length === 0 && !ai.status.busy && (
             <div className="atlas-empty">
               <div className="atlas-empty__title">Design your architecture</div>

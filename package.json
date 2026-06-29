@@ -54,6 +54,11 @@
         "command": "atlas.registerMcpServer",
         "title": "Register MCP Server for Claude Code",
         "category": "Atlas"
+      },
+      {
+        "command": "atlas.export",
+        "title": "Export Architecture (Mermaid / Markdown)",
+        "category": "Atlas"
       }
     ],
     "configuration": {

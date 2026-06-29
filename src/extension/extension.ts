@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 
 import { registerAiCommands } from './commands/aiCommands';
+import { registerExportCommand } from './commands/exportCommands';
 import { registerMcpCommand } from './commands/mcpCommands';
 import { registerOpenArchitectureCommand } from './commands/openArchitecture';
 
@@ -16,6 +17,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     registerOpenArchitectureCommand(context),
     registerMcpCommand(context),
+    registerExportCommand(),
     ...registerAiCommands(context),
   );
 }

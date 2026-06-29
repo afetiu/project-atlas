@@ -1418,3 +1418,67 @@ select.atlas-input {
   background: #f0a868;
   border: 2px solid var(--bg-elevated);
 }
+
+/* ---------------- Legend ---------------- */
+
+.atlas-legend {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-soft);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.atlas-legend__toggle {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.atlas-legend__body {
+  padding: 4px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.atlas-legend__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.atlas-legend__icon {
+  display: inline-flex;
+}
+
+.atlas-legend__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.atlas-legend__swatch--ring {
+  background: transparent;
+  border: 2px solid var(--accent);
+}
+
+.atlas-legend__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 3px 0;
+}
