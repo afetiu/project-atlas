@@ -4,7 +4,10 @@
  * happens through normal VS Code source control — Atlas only surfaces the diff).
  */
 
+import { useRef } from 'react';
+
 import type { ApplyResult } from '../model/useAiSession';
+import { useOverlay } from '../hooks/useOverlay';
 
 interface DiffOverlayProps {
   result: ApplyResult;
@@ -13,9 +16,19 @@ interface DiffOverlayProps {
 }
 
 export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JSX.Element {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useOverlay(modalRef, onClose);
   return (
-    <div className="atlas-overlay" role="dialog" aria-modal="true">
-      <div className="atlas-modal">
+    <div className="atlas-overlay" role="presentation" onMouseDown={onClose}>
+      <div
+        className="atlas-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Generated changes"
+        tabIndex={-1}
+        ref={modalRef}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <header className="atlas-modal__header">
           <div>
             <div className="atlas-modal__title">Changes applied</div>

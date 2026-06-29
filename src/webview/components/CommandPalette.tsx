@@ -12,6 +12,7 @@ import {
   type NodeTypeId,
 } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
+import { useOverlay } from '../hooks/useOverlay';
 
 interface CommandItem {
   id: string;
@@ -38,7 +39,9 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
+  useOverlay(modalRef, onClose);
   useEffect(() => inputRef.current?.focus(), []);
 
   const items = useMemo<CommandItem[]>(() => {
@@ -83,8 +86,16 @@ export function CommandPalette({
   };
 
   return (
-    <div className="atlas-overlay atlas-overlay--top" onMouseDown={onClose}>
-      <div className="atlas-palette-modal" onMouseDown={(event) => event.stopPropagation()}>
+    <div className="atlas-overlay atlas-overlay--top" role="presentation" onMouseDown={onClose}>
+      <div
+        className="atlas-palette-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        tabIndex={-1}
+        ref={modalRef}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
         <input
           ref={inputRef}
           className="atlas-palette-modal__input"

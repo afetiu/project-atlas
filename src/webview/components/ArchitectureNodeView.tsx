@@ -44,9 +44,11 @@ function ArchitectureNodeViewComponent({
       {data.issueSeverity && (
         <span
           className={`atlas-node__badge atlas-node__badge--${data.issueSeverity}`}
-          title="This component has architecture issues"
-          aria-hidden="true"
-        />
+          title={`This component has a ${data.issueSeverity}`}
+          aria-label={`${data.issueSeverity} on this component`}
+        >
+          {data.issueSeverity === 'error' ? '!' : '▲'}
+        </span>
       )}
 
       <Handle type="source" position={Position.Right} className="atlas-handle" />

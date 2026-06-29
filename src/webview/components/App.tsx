@@ -8,11 +8,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 
+import { diffModels, summarizeDelta } from '../../shared/model/diff';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
+import type { ArchitectureModel } from '../../shared/model/types';
 import { evaluateRules, topSeverity, type RuleSeverity } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
 import { postToHost } from '../vscodeApi';
+import { ApplyConfirm } from './ApplyConfirm';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
 import { CommandPalette } from './CommandPalette';
@@ -37,7 +40,32 @@ export function App(): JSX.Element {
   const [rightTab, setRightTab] = useState<RightTab>('inspector');
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [pendingApply, setPendingApply] = useState<{
+    model: ArchitectureModel;
+    instruction?: string;
+    changes: string[];
+  } | null>(null);
   const spawnCount = useRef(0);
+
+  // Both apply paths go through an explicit confirmation before code is written.
+  const requestApplyPending = useCallback(() => {
+    setPendingApply({ model, changes: ai.pendingSummary });
+  }, [model, ai.pendingSummary]);
+
+  const requestApplyProposal = useCallback(
+    (target: ArchitectureModel, instruction: string) => {
+      const changes = summarizeDelta(diffModels(model, target));
+      setPendingApply({ model: target, instruction, changes });
+    },
+    [model],
+  );
+
+  const confirmApply = useCallback(() => {
+    if (pendingApply) {
+      ai.applyTarget(pendingApply.model, pendingApply.instruction);
+      setPendingApply(null);
+    }
+  }, [pendingApply, ai]);
 
   const toggleCollapse = useCallback((groupId: string) => {
     setCollapsedGroups((prev) => {
@@ -216,7 +244,7 @@ export function App(): JSX.Element {
           onUndo={api.undo}
           onRedo={api.redo}
           onDetect={ai.detect}
-          onApplyPending={() => ai.applyTarget(model)}
+          onApplyPending={requestApplyPending}
           onCancel={ai.cancel}
         />
         <div className="atlas-topbar__meta">
@@ -249,11 +277,26 @@ export function App(): JSX.Element {
             onToggleCollapse={toggleCollapse}
           />
           {model.nodes.length === 0 && !ai.status.busy && (
-            <div className="atlas-empty" aria-hidden="true">
+            <div className="atlas-empty">
               <div className="atlas-empty__title">Design your architecture</div>
               <div className="atlas-empty__body">
-                Drag a component from the palette, or “Detect from code” to map an
-                existing repository.
+                Map an existing repository with AI, or start from a blank canvas.
+              </div>
+              <div className="atlas-empty__actions">
+                <button
+                  type="button"
+                  className="atlas-button atlas-button--accent"
+                  onClick={ai.detect}
+                >
+                  Detect from code
+                </button>
+                <button
+                  type="button"
+                  className="atlas-button"
+                  onClick={() => handlePaletteAdd('service')}
+                >
+                  Add a component
+                </button>
               </div>
             </div>
           )}
@@ -306,7 +349,7 @@ export function App(): JSX.Element {
               status={ai.status}
               progress={ai.progress}
               onSend={ai.sendChat}
-              onApplyProposal={(proposal) => ai.applyTarget(proposal.model, proposal.summary)}
+              onApplyProposal={(proposal) => requestApplyProposal(proposal.model, proposal.summary)}
             />
           )}
         </aside>
@@ -317,6 +360,14 @@ export function App(): JSX.Element {
           result={ai.applyResult}
           onClose={ai.dismissApply}
           onRevert={ai.revertApply}
+        />
+      )}
+
+      {pendingApply && (
+        <ApplyConfirm
+          changes={pendingApply.changes}
+          onConfirm={confirmApply}
+          onCancel={() => setPendingApply(null)}
         />
       )}
 

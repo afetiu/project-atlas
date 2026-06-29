@@ -1333,3 +1333,56 @@ select.atlas-input {
 .atlas-verify__detail {
   color: var(--text-faint);
 }
+
+/* ---------------- Batch A: a11y + confirmation ---------------- */
+
+/* Visible keyboard focus across all interactive surfaces. */
+.atlas-button:focus-visible,
+.atlas-tab:focus-visible,
+.atlas-command:focus-visible,
+.atlas-issue:focus-visible,
+.atlas-swatch:focus-visible,
+.atlas-palette__item:focus-visible,
+.atlas-icon-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.atlas-empty__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  pointer-events: auto;
+}
+
+.atlas-empty__actions .atlas-button {
+  width: auto;
+  padding: 8px 16px;
+}
+
+/* Node issue badge now carries a glyph (not colour alone). */
+.atlas-node__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: #1a1a1a;
+}
+
+.atlas-modal--narrow {
+  width: min(520px, 100%);
+}
+
+.atlas-change-list {
+  margin: 0;
+  padding: 14px 16px 14px 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text);
+}
