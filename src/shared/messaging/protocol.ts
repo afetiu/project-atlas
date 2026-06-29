@@ -63,6 +63,12 @@ export interface AiErrorMessage {
   message: string;
 }
 
+/** A streamed token of the assistant's in-progress reply. */
+export interface ChatTokenMessage {
+  type: 'chat:token';
+  text: string;
+}
+
 /** A completed chat turn, optionally carrying a proposal to apply. */
 export interface ChatReplyMessage {
   type: 'chat:reply';
@@ -106,6 +112,7 @@ export type HostToWebviewMessage =
   | AiStatusMessage
   | AiProgressMessage
   | AiErrorMessage
+  | ChatTokenMessage
   | ChatReplyMessage
   | SyncStatusMessage
   | ApplyDoneMessage;

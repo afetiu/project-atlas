@@ -1386,3 +1386,22 @@ select.atlas-input {
   font-size: 13px;
   color: var(--text);
 }
+
+/* ---------------- Streaming caret ---------------- */
+
+.atlas-bubble__caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: atlas-blink 1s steps(2, start) infinite;
+}
+
+@keyframes atlas-blink {
+  to {
+    visibility: hidden;
+  }
+}

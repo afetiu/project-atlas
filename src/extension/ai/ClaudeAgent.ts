@@ -16,7 +16,7 @@ import {
   detectedToModel,
   type DetectedArchitecture,
 } from '../../shared/ai/detection';
-import { buildChatSchema, type ChatResponse, type ChatTurn } from '../../shared/ai/chat';
+import { parseChatReply, type ChatResponse, type ChatTurn } from '../../shared/ai/chat';
 import type { ModelDelta } from '../../shared/model/diff';
 import type { ArchitectureModel } from '../../shared/model/types';
 import type { AuthProvider } from './AuthProvider';
@@ -97,29 +97,40 @@ export class ClaudeAgent {
     model: ArchitectureModel,
     history: ChatTurn[],
     message: string,
-    onEvent: AgentEventHandler,
+    onToken: (text: string) => void,
     abortController: AbortController,
   ): Promise<ChatResponse> {
+    // Stream the prose reply token-by-token; a trailing fenced block (parsed
+    // afterwards) carries any proposal, so we don't need structured output.
     const options = await this.baseOptions(cwd, abortController, {
       allowedTools: ['Read', 'Glob', 'Grep'],
       permissionMode: 'default',
       systemPrompt: buildChatSystemPrompt(model),
-      outputFormat: { type: 'json_schema', schema: buildChatSchema() },
+      includePartialMessages: true,
     });
 
     const query = await loadQuery();
-    let structured: unknown;
+    let full = '';
+    let sawResult = false;
     for await (const event of query({ prompt: composeChatPrompt(history, message), options })) {
-      this.relayProgress(event, onEvent);
-      if (event.type === 'result') {
-        structured = this.requireSuccess(event).structured_output;
+      if (event.type === 'stream_event') {
+        const delta = textDelta(event);
+        if (delta) {
+          full += delta;
+          onToken(delta);
+        }
+      } else if (event.type === 'assistant' && event.error === 'authentication_failed') {
+        throw new AiError('auth', 'Claude authentication failed.');
+      } else if (event.type === 'result') {
+        this.requireSuccess(event);
+        sawResult = true;
       }
     }
 
-    if (!structured || typeof (structured as ChatResponse).reply !== 'string') {
+    if (!sawResult && full.length === 0) {
       throw new AiError('failed', 'Claude returned no response.');
     }
-    return structured as ChatResponse;
+    return parseChatReply(full);
   }
 
   /** Generate code that realizes an architecture change, streaming progress. */
@@ -261,6 +272,15 @@ function codegenGuard(cwd: string): NonNullable<Options['canUseTool']> {
     }
     return { behavior: 'deny', message: `Atlas blocked tool "${toolName}" during code generation.` };
   };
+}
+
+/** Pull a text delta out of a streaming partial-assistant event, if present. */
+function textDelta(event: Extract<SDKMessage, { type: 'stream_event' }>): string | undefined {
+  const raw = event.event as { type?: string; delta?: { type?: string; text?: string } };
+  if (raw.type === 'content_block_delta' && raw.delta?.type === 'text_delta') {
+    return raw.delta.text;
+  }
+  return undefined;
 }
 
 function collectTouchedFiles(message: SDKMessage, touched: Set<string>): void {

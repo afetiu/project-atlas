@@ -28,6 +28,49 @@ export interface ChatTurn {
   content: string;
 }
 
+/** Fenced block the model appends when it wants to propose an architecture. */
+export const PROPOSAL_FENCE = 'atlas-proposal';
+
+/**
+ * Parse a streamed assistant reply: the prose is the answer, and an optional
+ * trailing ```atlas-proposal``` JSON block carries a proposed architecture.
+ * Using a fenced block (instead of forcing structured output) lets the reply
+ * stream token-by-token.
+ */
+export function parseChatReply(text: string): ChatResponse {
+  const match = text.match(/```atlas-proposal\s*([\s\S]*?)```/);
+  if (!match) {
+    return { reply: text.trim() };
+  }
+  const reply = text.replace(match[0], '').trim();
+  try {
+    const obj = JSON.parse(match[1].trim()) as {
+      summary?: unknown;
+      nodes?: unknown;
+      edges?: unknown;
+    };
+    if (Array.isArray(obj.nodes)) {
+      return {
+        reply,
+        proposal: {
+          summary: typeof obj.summary === 'string' ? obj.summary : 'Proposed change',
+          nodes: obj.nodes as DetectedNode[],
+          edges: Array.isArray(obj.edges) ? (obj.edges as DetectedEdge[]) : [],
+        },
+      };
+    }
+  } catch {
+    // Malformed proposal block — treat the whole text as prose.
+  }
+  return { reply };
+}
+
+/** Strip a (possibly partial) trailing proposal block for live display. */
+export function stripProposalBlock(text: string): string {
+  const index = text.indexOf('```' + PROPOSAL_FENCE);
+  return index >= 0 ? text.slice(0, index).trim() : text;
+}
+
 /** JSON Schema handed to the Agent SDK as `outputFormat` for chat turns. */
 export function buildChatSchema(): Record<string, unknown> {
   const nodeItem = {

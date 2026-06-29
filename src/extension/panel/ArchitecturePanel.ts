@@ -204,7 +204,7 @@ export class ArchitecturePanel {
         model,
         history,
         message,
-        (event) => this.relay('chat', event),
+        (text) => this.post({ type: 'chat:token', text }),
         this.abortController!,
       );
       let proposal: ChangeProposal | undefined;

@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ChatTurn } from '../../shared/ai/chat';
+import { stripProposalBlock, type ChatTurn } from '../../shared/ai/chat';
 import type {
   AiJob,
   ChangeProposal,
@@ -29,6 +29,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   proposal?: ChangeProposal;
+  streaming?: boolean;
 }
 
 export interface ApplyResult {
@@ -73,6 +74,8 @@ export function useAiSession(): AiSession {
   const nextId = useRef(1);
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
+  const streamingId = useRef<number | null>(null);
+  const streamRaw = useRef('');
 
   useEffect(() => {
     return onHostMessage((message) => {
@@ -89,17 +92,33 @@ export function useAiSession(): AiSession {
           break;
         case 'ai:error':
           setError({ code: message.code, message: message.message });
+          // Finalize any in-flight streaming bubble so it doesn't spin forever.
+          if (streamingId.current !== null) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamingId.current ? { ...m, streaming: false } : m)),
+            );
+            streamingId.current = null;
+          }
+          break;
+        case 'chat:token':
+          streamRaw.current += message.text;
+          {
+            const display = stripProposalBlock(streamRaw.current);
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamingId.current ? { ...m, content: display } : m)),
+            );
+          }
           break;
         case 'chat:reply':
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: nextId.current++,
-              role: 'assistant',
-              content: message.reply,
-              proposal: message.proposal,
-            },
-          ]);
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === streamingId.current
+                ? { ...m, content: message.reply, proposal: message.proposal, streaming: false }
+                : m,
+            ),
+          );
+          streamingId.current = null;
+          streamRaw.current = '';
           break;
         case 'sync:status':
           setPendingSummary(message.pendingSummary);
@@ -127,9 +146,13 @@ export function useAiSession(): AiSession {
       role: m.role,
       content: m.content,
     }));
+    const assistantId = nextId.current + 1;
+    streamingId.current = assistantId;
+    streamRaw.current = '';
     setMessages((prev) => [
       ...prev,
       { id: nextId.current++, role: 'user', content: trimmed },
+      { id: nextId.current++, role: 'assistant', content: '', streaming: true },
     ]);
     postToHost({ type: 'chat:send', message: trimmed, history });
   }, []);

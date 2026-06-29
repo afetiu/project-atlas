@@ -103,7 +103,10 @@ function MessageBubble({
 }): JSX.Element {
   return (
     <div className={`atlas-bubble atlas-bubble--${message.role}`}>
-      <div className="atlas-bubble__text">{message.content}</div>
+      <div className="atlas-bubble__text">
+        {message.content}
+        {message.streaming && <span className="atlas-bubble__caret" aria-hidden="true" />}
+      </div>
       {message.proposal && (
         <div className="atlas-proposal">
           <div className="atlas-proposal__summary">{message.proposal.summary}</div>
