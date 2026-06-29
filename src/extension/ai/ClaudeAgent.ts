@@ -62,6 +62,7 @@ export class ClaudeAgent {
     cwd: string,
     onEvent: AgentEventHandler,
     abortController: AbortController,
+    previous?: ArchitectureModel,
   ): Promise<ArchitectureModel> {
     const options = await this.baseOptions(cwd, abortController, {
       allowedTools: ['Read', 'Glob', 'Grep'],
@@ -81,7 +82,9 @@ export class ClaudeAgent {
     if (!structured) {
       throw new AiError('failed', 'Detection returned no architecture.');
     }
-    return detectedToModel(structured as DetectedArchitecture);
+    return detectedToModel(structured as DetectedArchitecture, {
+      preservePositionsFrom: previous,
+    });
   }
 
   /** Run one conversational turn, optionally returning a proposed model. */

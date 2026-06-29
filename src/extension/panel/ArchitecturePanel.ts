@@ -28,6 +28,7 @@ import { validateModel } from '../../shared/serialization/validation';
 import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
 import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
+import { RepoWatcher } from '../workspace/RepoWatcher';
 import { getWorkingTreeDiff } from '../workspace/git';
 import { buildWebviewHtml } from './webviewHtml';
 
@@ -36,6 +37,7 @@ export interface PanelDependencies {
   fileService: AtlasFileService;
   agent: ClaudeAgent;
   baseline: BaselineStore;
+  workspaceFolder: vscode.WorkspaceFolder;
   cwd: string;
 }
 
@@ -54,6 +56,7 @@ export class ArchitecturePanel {
     this.panel.webview.html = buildWebviewHtml(this.panel.webview, this.deps.extensionUri);
     this.disposables.push(
       this.deps.fileService,
+      new RepoWatcher(this.deps.workspaceFolder, () => void this.onRepoChanged()),
       this.panel.onDidDispose(() => this.dispose()),
       this.panel.webview.onDidReceiveMessage((m) => this.handleMessage(m)),
       this.deps.fileService.onDidChangeExternally(() => this.pushModelToWebview()),
@@ -116,15 +119,19 @@ export class ArchitecturePanel {
 
   /* ----------------------------- AI workflows ---------------------------- */
 
-  private async runDetect(): Promise<void> {
-    if (!this.begin('detect', 'Analyzing repository…')) {
+  private async runDetect(label = 'Analyzing repository…'): Promise<void> {
+    if (!this.begin('detect', label)) {
       return;
     }
     try {
+      // Preserve the current layout so re-running detection doesn't reshuffle
+      // the canvas — only the architecture content is refreshed.
+      const { model: previous } = await this.deps.fileService.read();
       const model = await this.deps.agent.detect(
         this.deps.cwd,
         (event) => this.relay('detect', event),
         this.abortController!,
+        previous,
       );
       await this.deps.fileService.write(model);
       await this.deps.baseline.set(model);
@@ -135,6 +142,23 @@ export class ArchitecturePanel {
     } finally {
       this.end();
     }
+  }
+
+  /**
+   * Auto-sync hook: re-detect when the repo changes, but never clobber pending
+   * manual edits — if the canvas is ahead of the baseline, the user is mid-edit
+   * and we leave their work alone.
+   */
+  private async onRepoChanged(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    const { model } = await this.deps.fileService.read();
+    const base = this.deps.baseline.get() ?? model;
+    if (!isEmptyDelta(diffModels(base, model))) {
+      return;
+    }
+    await this.runDetect('Syncing from code…');
   }
 
   private async runChat(message: string, history: ChatTurn[]): Promise<void> {

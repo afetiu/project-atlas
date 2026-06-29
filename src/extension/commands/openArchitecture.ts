@@ -32,6 +32,7 @@ export function openArchitecture(context: vscode.ExtensionContext): boolean {
     fileService: new AtlasFileService(workspaceFolder),
     agent: new ClaudeAgent(auth),
     baseline: new BaselineStore(context.workspaceState, workspaceFolder),
+    workspaceFolder,
     cwd: workspaceFolder.uri.fsPath,
   });
   return true;

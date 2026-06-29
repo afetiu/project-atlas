@@ -68,6 +68,11 @@
           "type": "string",
           "default": "",
           "description": "Absolute path to the `claude` executable. Leave empty to use the one on your PATH."
+        },
+        "atlas.autoSync": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Automatically re-detect the architecture when source files change. Each sync is a full AI run, so this is **off** by default. Pending manual canvas edits are never overwritten."
         }
       }
     }
