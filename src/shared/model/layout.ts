@@ -57,6 +57,54 @@ export function computeLayout(
     }
   }
 
+  // Nodes that were never dequeued live entirely inside a cycle (no in-edge ever
+  // hit zero), so Kahn left them at layer 0 overlapping the roots. Place each one
+  // by its *shortest* distance from an already-placed predecessor — a min
+  // relaxation (Bellman-Ford) that converges even through back-edges and is
+  // independent of node array order, unlike a longest-path pass which would
+  // diverge around the cycle.
+  const predecessors = new Map<string, string[]>(ids.map((id) => [id, []]));
+  for (const [from, tos] of adjacency) {
+    for (const to of tos) {
+      predecessors.get(to)!.push(from);
+    }
+  }
+  const cycleLayer = new Map<string, number>();
+  for (const id of ids) {
+    if (!visited.has(id)) {
+      cycleLayer.set(id, Infinity);
+    }
+  }
+  const layerOf = (id: string): number =>
+    visited.has(id) ? layer.get(id) ?? 0 : cycleLayer.get(id) ?? Infinity;
+  for (let pass = 0; pass < ids.length; pass += 1) {
+    let changed = false;
+    for (const id of ids) {
+      if (visited.has(id)) {
+        continue;
+      }
+      let best = Infinity;
+      for (const pred of predecessors.get(id) ?? []) {
+        const viaPred = layerOf(pred) + 1;
+        if (viaPred < best) {
+          best = viaPred;
+        }
+      }
+      if (best < (cycleLayer.get(id) ?? Infinity)) {
+        cycleLayer.set(id, best);
+        changed = true;
+      }
+    }
+    if (!changed) {
+      break;
+    }
+  }
+  // Commit cycle layers; a pure isolated cycle (unreachable from any root) keeps
+  // layer 0 rather than Infinity.
+  for (const [id, value] of cycleLayer) {
+    layer.set(id, Number.isFinite(value) ? value : 0);
+  }
+
   // Group by layer, preserving input order for stable row assignment.
   const byLayer = new Map<number, string[]>();
   for (const id of ids) {

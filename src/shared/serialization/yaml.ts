@@ -46,14 +46,16 @@ export function serializeModel(model: ArchitectureModel): string {
       // Only emit optional fields when they carry information, keeping the file lean.
       ...(node.groupId ? { groupId: node.groupId } : {}),
       ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
-      ...(node.extra ?? {}),
+      // Unknown/future fields survive a round-trip, but must never shadow a
+      // canonical key (that would silently change a node's type/id on save).
+      ...safeExtra(node.extra, NODE_KEYS),
     })),
     edges: sortById(model.edges).map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       protocol: edge.protocol,
-      ...(edge.extra ?? {}),
+      ...safeExtra(edge.extra, EDGE_KEYS),
     })),
     groups: sortById(model.groups).map((group) => ({
       id: group.id,
@@ -61,12 +63,36 @@ export function serializeModel(model: ArchitectureModel): string {
       ...(group.description ? { description: group.description } : {}),
       ...(group.color ? { color: group.color } : {}),
       ...(hasMapping(group.mapping) ? { mapping: compactMapping(group.mapping!) } : {}),
-      ...(group.extra ?? {}),
+      ...safeExtra(group.extra, GROUP_KEYS),
     })),
-    ...(model.extra ?? {}),
+    ...safeExtra(model.extra, MODEL_KEYS),
   };
 
   return stringify(document, { indent: 2, lineWidth: 0 });
+}
+
+// Canonical keys per entity. These are both the keys we emit explicitly and the
+// keys `extra` is forbidden from overriding.
+const NODE_KEYS = ['id', 'name', 'type', 'description', 'groupId', 'mapping', 'position'];
+const EDGE_KEYS = ['id', 'source', 'target', 'protocol'];
+const GROUP_KEYS = ['id', 'name', 'description', 'color', 'mapping'];
+const MODEL_KEYS = ['version', 'nodes', 'edges', 'groups'];
+
+/** Drop any key that collides with a canonical field so `extra` can never shadow it. */
+function safeExtra(
+  extra: Record<string, unknown> | undefined,
+  known: string[],
+): Record<string, unknown> {
+  if (!extra) {
+    return {};
+  }
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(extra)) {
+    if (!known.includes(key)) {
+      result[key] = extra[key];
+    }
+  }
+  return result;
 }
 
 /** Serialize node positions to the layout sidecar (atlas.layout.yaml). */
@@ -151,9 +177,14 @@ export function deserializeModel(text: string): ArchitectureModel {
  * for the first breaking change.
  */
 function migrate(record: Record<string, unknown>, fromVersion: number): Record<string, unknown> {
+  // Never run upgrade steps on a file from a future schema version — that file
+  // is handled read-only at the file-service layer, and partially "migrating" it
+  // with older logic would corrupt it.
+  if (fromVersion >= CURRENT_MODEL_VERSION) {
+    return record;
+  }
   // Future migrations chain here, e.g.:
   //   if (fromVersion < 2) record = migrateV1toV2(record);
-  void fromVersion;
   return record;
 }
 

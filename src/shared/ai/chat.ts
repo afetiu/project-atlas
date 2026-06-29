@@ -7,8 +7,6 @@
  * the existing diff engine compute exactly what changed.
  */
 
-import { NODE_TYPE_IDS } from '../model/nodeTypes';
-import { PROTOCOL_IDS } from '../model/protocols';
 import type { DetectedEdge, DetectedNode } from './detection';
 
 export interface ChatProposal {
@@ -31,95 +29,69 @@ export interface ChatTurn {
 /** Fenced block the model appends when it wants to propose an architecture. */
 export const PROPOSAL_FENCE = 'atlas-proposal';
 
+/** Defensive upper bound so a runaway proposal can't flood the canvas. */
+export const MAX_PROPOSAL_NODES = 500;
+
+const FENCE_RE = /```atlas-proposal\s*([\s\S]*?)```/g;
+
 /**
  * Parse a streamed assistant reply: the prose is the answer, and an optional
  * trailing ```atlas-proposal``` JSON block carries a proposed architecture.
  * Using a fenced block (instead of forcing structured output) lets the reply
  * stream token-by-token.
+ *
+ * Robust to the model emitting more than one fence (e.g. a throwaway draft then
+ * the real one): every fence is stripped from the prose, and the *last* fence
+ * that parses into a usable proposal wins.
  */
 export function parseChatReply(text: string): ChatResponse {
-  const match = text.match(/```atlas-proposal\s*([\s\S]*?)```/);
-  if (!match) {
+  const matches = [...text.matchAll(FENCE_RE)];
+  if (matches.length === 0) {
     return { reply: text.trim() };
   }
-  const reply = text.replace(match[0], '').trim();
-  try {
-    const obj = JSON.parse(match[1].trim()) as {
-      summary?: unknown;
-      nodes?: unknown;
-      edges?: unknown;
-    };
-    if (Array.isArray(obj.nodes)) {
-      return {
-        reply,
-        proposal: {
-          summary: typeof obj.summary === 'string' ? obj.summary : 'Proposed change',
-          nodes: obj.nodes as DetectedNode[],
-          edges: Array.isArray(obj.edges) ? (obj.edges as DetectedEdge[]) : [],
-        },
-      };
+
+  let reply = text;
+  for (const m of matches) {
+    reply = reply.replace(m[0], '');
+  }
+  reply = reply.trim();
+
+  // Prefer the last well-formed proposal; ignore empty/malformed earlier ones.
+  for (let i = matches.length - 1; i >= 0; i -= 1) {
+    const proposal = parseProposalBlock(matches[i][1]);
+    if (proposal) {
+      return { reply, proposal };
     }
-  } catch {
-    // Malformed proposal block — treat the whole text as prose.
   }
   return { reply };
+}
+
+function parseProposalBlock(body: string): ChatProposal | null {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  try {
+    const obj = JSON.parse(trimmed) as { summary?: unknown; nodes?: unknown; edges?: unknown };
+    if (!Array.isArray(obj.nodes) || obj.nodes.length === 0) {
+      return null;
+    }
+    const nodes = (obj.nodes as DetectedNode[]).slice(0, MAX_PROPOSAL_NODES);
+    const edges = Array.isArray(obj.edges)
+      ? (obj.edges as DetectedEdge[]).slice(0, MAX_PROPOSAL_NODES * 4)
+      : [];
+    return {
+      summary: typeof obj.summary === 'string' ? obj.summary : 'Proposed change',
+      nodes,
+      edges,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Strip a (possibly partial) trailing proposal block for live display. */
 export function stripProposalBlock(text: string): string {
   const index = text.indexOf('```' + PROPOSAL_FENCE);
   return index >= 0 ? text.slice(0, index).trim() : text;
-}
-
-/** JSON Schema handed to the Agent SDK as `outputFormat` for chat turns. */
-export function buildChatSchema(): Record<string, unknown> {
-  const nodeItem = {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      id: { type: 'string' },
-      name: { type: 'string' },
-      type: { type: 'string', enum: [...NODE_TYPE_IDS] },
-      description: { type: 'string' },
-      path: { type: 'string' },
-      language: { type: 'string' },
-      framework: { type: 'string' },
-      group: { type: 'string', description: 'Bounded context / domain name.' },
-    },
-    required: ['id', 'name', 'type'],
-  };
-  const edgeItem = {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      source: { type: 'string' },
-      target: { type: 'string' },
-      protocol: { type: 'string', enum: [...PROTOCOL_IDS] },
-    },
-    required: ['source', 'target', 'protocol'],
-  };
-
-  return {
-    type: 'object',
-    additionalProperties: false,
-    properties: {
-      reply: {
-        type: 'string',
-        description: 'Conversational answer to the user.',
-      },
-      proposal: {
-        type: 'object',
-        additionalProperties: false,
-        description:
-          'Omit unless the user asked to change the architecture. The complete desired graph.',
-        properties: {
-          summary: { type: 'string' },
-          nodes: { type: 'array', items: nodeItem },
-          edges: { type: 'array', items: edgeItem },
-        },
-        required: ['summary', 'nodes', 'edges'],
-      },
-    },
-    required: ['reply'],
-  };
 }

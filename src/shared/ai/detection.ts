@@ -113,6 +113,10 @@ export function detectedToModel(
 ): ArchitectureModel {
   const used = new Set<string>();
   const idMap = new Map<string, string>();
+  // slug → finalId, but only while unambiguous. When two distinct original ids
+  // slugify to the same base, the slug can no longer identify a single node, so
+  // we blank it (null) rather than let an edge silently resolve to the wrong one.
+  const idBySlug = new Map<string, string | null>();
   const nodes: ArchitectureNode[] = [];
 
   // Build groups from the distinct context names the model assigned.
@@ -132,9 +136,11 @@ export function detectedToModel(
 
   for (const raw of detected.nodes ?? []) {
     const originalId = (raw.id || raw.name || 'node').trim();
-    const finalId = uniqueId(slugify(originalId), used);
+    const slug = slugify(originalId);
+    const finalId = uniqueId(slug, used);
     used.add(finalId);
     idMap.set(originalId, finalId);
+    idBySlug.set(slug, idBySlug.has(slug) ? null : finalId);
 
     const node: ArchitectureNode = {
       id: finalId,
@@ -155,10 +161,29 @@ export function detectedToModel(
   const seenEdges = new Set<string>();
   const edges: ArchitectureEdge[] = [];
 
+  // Resolve an edge endpoint to a real node id: exact original id first, then
+  // the node's own final id, then an unambiguous slug. Anything else is dropped
+  // — never guessed — so a stray reference can't rewire to the wrong node.
+  const resolveEndpoint = (ref: string): string | null => {
+    const trimmed = (ref || '').trim();
+    if (!trimmed) {
+      return null;
+    }
+    const exact = idMap.get(trimmed);
+    if (exact) {
+      return exact;
+    }
+    if (nodeIds.has(trimmed)) {
+      return trimmed;
+    }
+    const bySlug = idBySlug.get(slugify(trimmed));
+    return bySlug ?? null;
+  };
+
   for (const raw of detected.edges ?? []) {
-    const source = idMap.get((raw.source || '').trim()) ?? slugify(raw.source || '');
-    const target = idMap.get((raw.target || '').trim()) ?? slugify(raw.target || '');
-    if (!nodeIds.has(source) || !nodeIds.has(target) || source === target) {
+    const source = resolveEndpoint(raw.source || '');
+    const target = resolveEndpoint(raw.target || '');
+    if (!source || !target || source === target) {
       continue;
     }
     const dedupeKey = `${source}->${target}`;

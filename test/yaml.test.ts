@@ -119,3 +119,26 @@ test('coerces unknown type and protocol to defaults', () => {
   assert.equal(model.nodes[0].type, 'service');
   assert.equal(model.edges[0].protocol, 'http');
 });
+
+test('extra fields can never shadow a canonical key on serialize', () => {
+  // A node whose `extra` carries a key that collides with a real field must not
+  // be able to overwrite that field when written back out.
+  const model: ArchitectureModel = {
+    version: 1,
+    nodes: [
+      {
+        id: 'a',
+        name: 'A',
+        type: 'service',
+        description: '',
+        position: { x: 0, y: 0 },
+        extra: { type: 'database', id: 'evil' },
+      },
+    ],
+    edges: [],
+    groups: [],
+  };
+  const back = deserializeModel(serializeModel(model));
+  assert.equal(back.nodes[0].id, 'a');
+  assert.equal(back.nodes[0].type, 'service');
+});

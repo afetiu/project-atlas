@@ -63,6 +63,28 @@ test('summarizeDelta renders human lines', () => {
   assert.ok(lines.some((l) => /Remove service/.test(l)));
 });
 
+test('detects an edge rewire that keeps the same id', () => {
+  const base = model([node('a'), node('b'), node('c')], [
+    { id: 'e', source: 'a', target: 'b', protocol: 'http' },
+  ]);
+  const next = model([node('a'), node('b'), node('c')], [
+    { id: 'e', source: 'a', target: 'c', protocol: 'http' },
+  ]);
+  const delta = diffModels(base, next);
+  assert.equal(isEmptyDelta(delta), false);
+  assert.deepEqual(delta.updatedEdges[0].changes, ['endpoints']);
+  assert.ok(summarizeDelta(delta).some((l) => /Rewire connection/.test(l)));
+});
+
+test('detects a group rename/description update', () => {
+  const a = model([], [], [{ id: 'g', name: 'Old', description: 'a' }]);
+  const b = model([], [], [{ id: 'g', name: 'New', description: 'b' }]);
+  const delta = diffModels(a, b);
+  assert.equal(isEmptyDelta(delta), false);
+  assert.deepEqual(delta.updatedGroups[0].changes.sort(), ['description', 'name']);
+  assert.ok(summarizeDelta(delta).some((l) => /Update bounded context/.test(l)));
+});
+
 test('detects group changes and membership moves', () => {
   const a = model([node('x')], [], []);
   const b = model([node('x', { groupId: 'orders' })], [], [{ id: 'orders', name: 'Orders' }]);

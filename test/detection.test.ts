@@ -33,6 +33,39 @@ test('deduplicates colliding ids', () => {
   assert.deepEqual(ids, ['svc', 'svc-2']);
 });
 
+test('does not rewire an edge when two ids slugify to the same base', () => {
+  // "Order Service" → order-service, "order-service" → order-service-2.
+  // The edge must connect exactly the two referenced nodes, not whichever node
+  // a bare slug happens to collide with.
+  const detected: DetectedArchitecture = {
+    nodes: [
+      { id: 'Order Service', name: 'Order Service', type: 'service' },
+      { id: 'order-service', name: 'Order Service 2', type: 'service' },
+    ],
+    edges: [{ source: 'order-service', target: 'Order Service', protocol: 'http' }],
+  };
+  const model = detectedToModel(detected);
+  assert.deepEqual(
+    model.nodes.map((n) => n.id),
+    ['order-service', 'order-service-2'],
+  );
+  assert.equal(model.edges.length, 1);
+  // source "order-service" is the 2nd node's original id; target "Order Service" is the 1st.
+  assert.equal(model.edges[0].source, 'order-service-2');
+  assert.equal(model.edges[0].target, 'order-service');
+});
+
+test('drops an edge whose endpoint cannot be resolved instead of guessing', () => {
+  const detected: DetectedArchitecture = {
+    nodes: [
+      { id: 'a', name: 'A', type: 'service' },
+      { id: 'b', name: 'B', type: 'service' },
+    ],
+    edges: [{ source: 'a', target: 'totally-unknown', protocol: 'http' }],
+  };
+  assert.equal(detectedToModel(detected).edges.length, 0);
+});
+
 test('drops edges referencing unknown nodes and self-loops', () => {
   const detected: DetectedArchitecture = {
     nodes: [{ id: 'a', name: 'A', type: 'service' }],
