@@ -34,8 +34,43 @@
         "command": "atlas.openArchitecture",
         "title": "Open Architecture",
         "category": "Atlas"
+      },
+      {
+        "command": "atlas.detectArchitecture",
+        "title": "Detect Architecture from Code",
+        "category": "Atlas"
+      },
+      {
+        "command": "atlas.setApiKey",
+        "title": "Set Anthropic API Key",
+        "category": "Atlas"
+      },
+      {
+        "command": "atlas.clearApiKey",
+        "title": "Clear Anthropic API Key",
+        "category": "Atlas"
+      },
+      {
+        "command": "atlas.registerMcpServer",
+        "title": "Register MCP Server for Claude Code",
+        "category": "Atlas"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Atlas",
+      "properties": {
+        "atlas.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Claude model id Atlas should use (e.g. `claude-opus-4-8`). Leave empty to use the Claude Code default."
+        },
+        "atlas.claudeExecutablePath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the `claude` executable. Leave empty to use the one on your PATH."
+        }
+      }
+    }
   },
   "activationEvents": [],
   "scripts": {

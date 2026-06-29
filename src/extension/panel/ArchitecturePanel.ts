@@ -1,57 +1,72 @@
 /**
- * Manages the lifecycle of the Atlas architecture webview panel.
+ * Manages the Atlas webview panel and orchestrates the AI workflows.
  *
- * This class is the bridge between the domain layer (`AtlasFileService`) and the
- * webview UI. It owns the single panel instance, translates messages in both
- * directions, and keeps the canvas and `atlas.yaml` in sync:
+ * The panel is the bridge between three collaborators — the file service
+ * (atlas.yaml), the Claude agent (AI), and the baseline store (what the code
+ * currently reflects) — and the webview UI. It translates messages in both
+ * directions and keeps the canvas, the file, and the code in sync:
  *
- *   webview edit  → model:changed → AtlasFileService.write()
- *   external edit → onDidChangeExternally → read() → model:loaded → webview
+ *   canvas edit    → model:changed → write atlas.yaml + recompute pending diff
+ *   external edit  → file watcher  → model:loaded → webview
+ *   detect         → AI analysis   → write atlas.yaml + set baseline
+ *   apply          → AI code-gen   → git diff + advance baseline
  */
 
 import * as vscode from 'vscode';
 
+import type { ChatTurn } from '../../shared/ai/chat';
+import { detectedToModel } from '../../shared/ai/detection';
 import type {
+  AiJob,
+  ChangeProposal,
   HostToWebviewMessage,
   WebviewToHostMessage,
 } from '../../shared/messaging/protocol';
-import type { ArchitectureModel } from '../../shared/model/types';
+import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/diff';
+import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
+import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
+import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
+import { getWorkingTreeDiff } from '../workspace/git';
 import { buildWebviewHtml } from './webviewHtml';
+
+export interface PanelDependencies {
+  extensionUri: vscode.Uri;
+  fileService: AtlasFileService;
+  agent: ClaudeAgent;
+  baseline: BaselineStore;
+  cwd: string;
+}
 
 export class ArchitecturePanel {
   public static readonly viewType = 'atlas.architecture';
   private static current: ArchitecturePanel | undefined;
 
   private readonly disposables: vscode.Disposable[] = [];
+  private abortController: AbortController | undefined;
+  private busy = false;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
-    private readonly extensionUri: vscode.Uri,
-    private readonly fileService: AtlasFileService,
+    private readonly deps: PanelDependencies,
   ) {
-    this.panel.webview.html = buildWebviewHtml(this.panel.webview, this.extensionUri);
-
+    this.panel.webview.html = buildWebviewHtml(this.panel.webview, this.deps.extensionUri);
     this.disposables.push(
-      this.fileService,
+      this.deps.fileService,
       this.panel.onDidDispose(() => this.dispose()),
-      this.panel.webview.onDidReceiveMessage((message) => this.handleMessage(message)),
-      this.fileService.onDidChangeExternally(() => this.pushModelToWebview()),
+      this.panel.webview.onDidReceiveMessage((m) => this.handleMessage(m)),
+      this.deps.fileService.onDidChangeExternally(() => this.pushModelToWebview()),
     );
   }
 
-  /** Reveal the existing panel or create a new one. */
-  static createOrShow(extensionUri: vscode.Uri, fileService: AtlasFileService): void {
+  static createOrShow(deps: PanelDependencies): void {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
-
     if (ArchitecturePanel.current) {
-      // A panel already owns its own file service; discard the redundant one.
-      fileService.dispose();
+      deps.fileService.dispose();
       ArchitecturePanel.current.panel.reveal(column);
       return;
     }
-
     const panel = vscode.window.createWebviewPanel(
       ArchitecturePanel.viewType,
       'Atlas Architecture',
@@ -59,12 +74,18 @@ export class ArchitecturePanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')],
+        localResourceRoots: [vscode.Uri.joinPath(deps.extensionUri, 'dist')],
       },
     );
-
-    ArchitecturePanel.current = new ArchitecturePanel(panel, extensionUri, fileService);
+    ArchitecturePanel.current = new ArchitecturePanel(panel, deps);
   }
+
+  /** Trigger detection from a command, revealing the panel first. */
+  static detect(): void {
+    void ArchitecturePanel.current?.runDetect();
+  }
+
+  /* -------------------------- message handling -------------------------- */
 
   private async handleMessage(message: WebviewToHostMessage): Promise<void> {
     switch (message.type) {
@@ -73,14 +94,129 @@ export class ArchitecturePanel {
         break;
       case 'model:changed':
         await this.persistModel(message.model);
+        await this.pushSyncStatus(message.model);
+        break;
+      case 'ai:detect':
+        await this.runDetect();
+        break;
+      case 'chat:send':
+        await this.runChat(message.message, message.history);
+        break;
+      case 'apply:request':
+        await this.runApply(message.model, message.instruction);
+        break;
+      case 'ai:cancel':
+        this.abortController?.abort();
+        break;
+      case 'auth:configure':
+        await vscode.commands.executeCommand('atlas.setApiKey');
         break;
     }
   }
 
+  /* ----------------------------- AI workflows ---------------------------- */
+
+  private async runDetect(): Promise<void> {
+    if (!this.begin('detect', 'Analyzing repository…')) {
+      return;
+    }
+    try {
+      const model = await this.deps.agent.detect(
+        this.deps.cwd,
+        (event) => this.relay('detect', event),
+        this.abortController!,
+      );
+      await this.deps.fileService.write(model);
+      await this.deps.baseline.set(model);
+      this.post({ type: 'model:loaded', model });
+      await this.pushSyncStatus(model);
+    } catch (error) {
+      this.reportAiError(error);
+    } finally {
+      this.end();
+    }
+  }
+
+  private async runChat(message: string, history: ChatTurn[]): Promise<void> {
+    if (!this.begin('chat', 'Thinking…')) {
+      return;
+    }
+    try {
+      const { model } = await this.deps.fileService.read();
+      const response = await this.deps.agent.chat(
+        this.deps.cwd,
+        model,
+        history,
+        message,
+        this.abortController!,
+      );
+      let proposal: ChangeProposal | undefined;
+      if (response.proposal && response.proposal.nodes?.length) {
+        const target = detectedToModel(
+          { nodes: response.proposal.nodes, edges: response.proposal.edges },
+          { preservePositionsFrom: model },
+        );
+        proposal = { summary: response.proposal.summary, model: target };
+      }
+      this.post({ type: 'chat:reply', reply: response.reply, proposal });
+    } catch (error) {
+      this.reportAiError(error);
+    } finally {
+      this.end();
+    }
+  }
+
+  private async runApply(target: ArchitectureModel, instruction?: string): Promise<void> {
+    const validation = validateModel(target);
+    if (!validation.valid) {
+      this.post({
+        type: 'model:error',
+        message: 'Cannot apply an invalid architecture.',
+        issues: validation.issues,
+      });
+      return;
+    }
+    if (!this.begin('codegen', 'Generating code…')) {
+      return;
+    }
+    try {
+      // Reflect the target on the canvas + file before generating code.
+      await this.deps.fileService.write(target);
+      this.post({ type: 'model:loaded', model: target });
+
+      const base = this.deps.baseline.get() ?? createEmptyModel();
+      const delta = diffModels(base, target);
+      if (isEmptyDelta(delta)) {
+        await this.deps.baseline.set(target);
+        this.post({ type: 'apply:done', summary: 'No code-relevant changes.', diff: '' });
+        await this.pushSyncStatus(target);
+        return;
+      }
+
+      const result = await this.deps.agent.generateCode(
+        this.deps.cwd,
+        delta,
+        target,
+        instruction,
+        (event) => this.relay('codegen', event),
+        this.abortController!,
+      );
+      const diff = await getWorkingTreeDiff(this.deps.cwd);
+      await this.deps.baseline.set(target);
+      this.post({ type: 'apply:done', summary: result.summary, diff });
+      await this.pushSyncStatus(target);
+    } catch (error) {
+      this.reportAiError(error);
+    } finally {
+      this.end();
+    }
+  }
+
+  /* ------------------------------- helpers ------------------------------ */
+
   private async persistModel(model: ArchitectureModel): Promise<void> {
     const result = validateModel(model);
     if (!result.valid) {
-      // Refuse to persist a structurally invalid model; surface the reason.
       this.post({
         type: 'model:error',
         message: 'Changes were not saved because the model is invalid.',
@@ -88,16 +224,72 @@ export class ArchitecturePanel {
       });
       return;
     }
-    await this.fileService.write(model);
+    await this.deps.fileService.write(model);
   }
 
   private async pushModelToWebview(): Promise<void> {
-    const { model, error } = await this.fileService.read();
+    const { model, error } = await this.deps.fileService.read();
     if (error) {
       this.post({ type: 'model:error', message: error });
       return;
     }
+    // First open of an existing map assumes the code already matches it.
+    if (!this.deps.baseline.get()) {
+      await this.deps.baseline.set(model);
+    }
     this.post({ type: 'model:loaded', model });
+    await this.pushSyncStatus(model);
+  }
+
+  private async pushSyncStatus(model: ArchitectureModel): Promise<void> {
+    const base = this.deps.baseline.get() ?? model;
+    const delta = diffModels(base, model);
+    this.post({ type: 'sync:status', pendingSummary: summarizeDelta(delta) });
+  }
+
+  private relay(job: AiJob, event: AgentEvent): void {
+    const line =
+      event.kind === 'tool'
+        ? `${event.name}${event.detail ? ` ${event.detail}` : ''}`
+        : event.text;
+    if (line.trim()) {
+      this.post({ type: 'ai:progress', job, line: line.trim() });
+    }
+  }
+
+  private begin(job: AiJob, label: string): boolean {
+    if (this.busy) {
+      this.post({
+        type: 'ai:error',
+        code: 'failed',
+        message: 'An AI task is already running.',
+      });
+      return false;
+    }
+    this.busy = true;
+    this.abortController = new AbortController();
+    this.post({ type: 'ai:status', busy: true, job, label });
+    return true;
+  }
+
+  private end(): void {
+    this.busy = false;
+    this.abortController = undefined;
+    this.post({ type: 'ai:status', busy: false });
+  }
+
+  private reportAiError(error: unknown): void {
+    if (error instanceof AiError) {
+      this.post({ type: 'ai:error', code: error.code, message: error.message });
+      return;
+    }
+    const message = error instanceof Error ? error.message : 'AI task failed.';
+    const cancelled = /abort/i.test(message);
+    this.post({
+      type: 'ai:error',
+      code: cancelled ? 'cancelled' : 'failed',
+      message: cancelled ? 'Task cancelled.' : message,
+    });
   }
 
   private post(message: HostToWebviewMessage): void {
@@ -106,6 +298,7 @@ export class ArchitecturePanel {
 
   private dispose(): void {
     ArchitecturePanel.current = undefined;
+    this.abortController?.abort();
     for (const disposable of this.disposables) {
       disposable.dispose();
     }

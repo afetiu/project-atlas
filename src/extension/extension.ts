@@ -8,10 +8,16 @@
 
 import * as vscode from 'vscode';
 
+import { registerAiCommands } from './commands/aiCommands';
+import { registerMcpCommand } from './commands/mcpCommands';
 import { registerOpenArchitectureCommand } from './commands/openArchitecture';
 
 export function activate(context: vscode.ExtensionContext): void {
-  context.subscriptions.push(registerOpenArchitectureCommand(context));
+  context.subscriptions.push(
+    registerOpenArchitectureCommand(context),
+    registerMcpCommand(context),
+    ...registerAiCommands(context),
+  );
 }
 
 export function deactivate(): void {

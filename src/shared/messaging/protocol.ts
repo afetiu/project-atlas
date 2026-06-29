@@ -10,11 +10,22 @@
  *   - `WebviewToHost*` flows webview → extension.
  */
 
+import type { ChatTurn } from '../ai/chat';
 import type { ArchitectureModel } from '../model/types';
 import type { ValidationIssue } from '../serialization/validation';
 
+/** The AI job currently running, used for progress attribution. */
+export type AiJob = 'detect' | 'chat' | 'codegen';
+
+/** A change the AI proposes, ready for the user to review and apply. */
+export interface ChangeProposal {
+  summary: string;
+  /** The complete desired architecture if this proposal is applied. */
+  model: ArchitectureModel;
+}
+
 /* ------------------------------------------------------------------ */
-/* Extension host → webview                                            */
+/* Extension host → webview                                           */
 /* ------------------------------------------------------------------ */
 
 /** Push the authoritative model into the webview (initial load or reload). */
@@ -30,7 +41,57 @@ export interface ModelErrorMessage {
   issues?: ValidationIssue[];
 }
 
-export type HostToWebviewMessage = ModelLoadedMessage | ModelErrorMessage;
+/** AI busy/idle state, so the UI can show spinners and disable actions. */
+export interface AiStatusMessage {
+  type: 'ai:status';
+  busy: boolean;
+  job?: AiJob;
+  label?: string;
+}
+
+/** A streamed progress line from a running AI job. */
+export interface AiProgressMessage {
+  type: 'ai:progress';
+  job: AiJob;
+  line: string;
+}
+
+/** An AI job failed (or needs auth). */
+export interface AiErrorMessage {
+  type: 'ai:error';
+  code: 'auth' | 'cancelled' | 'failed';
+  message: string;
+}
+
+/** A completed chat turn, optionally carrying a proposal to apply. */
+export interface ChatReplyMessage {
+  type: 'chat:reply';
+  reply: string;
+  proposal?: ChangeProposal;
+}
+
+/** How the current model differs from the code-synced baseline. */
+export interface SyncStatusMessage {
+  type: 'sync:status';
+  pendingSummary: string[];
+}
+
+/** Code generation finished; carries the resulting git diff. */
+export interface ApplyDoneMessage {
+  type: 'apply:done';
+  summary: string;
+  diff: string;
+}
+
+export type HostToWebviewMessage =
+  | ModelLoadedMessage
+  | ModelErrorMessage
+  | AiStatusMessage
+  | AiProgressMessage
+  | AiErrorMessage
+  | ChatReplyMessage
+  | SyncStatusMessage
+  | ApplyDoneMessage;
 
 /* ------------------------------------------------------------------ */
 /* Webview → extension host                                           */
@@ -47,4 +108,43 @@ export interface ModelChangedMessage {
   model: ArchitectureModel;
 }
 
-export type WebviewToHostMessage = WebviewReadyMessage | ModelChangedMessage;
+/** Run AI repository detection and replace the model with the result. */
+export interface DetectRequestMessage {
+  type: 'ai:detect';
+}
+
+/** Send a chat turn to the AI. */
+export interface ChatSendMessage {
+  type: 'chat:send';
+  message: string;
+  history: ChatTurn[];
+}
+
+/**
+ * Apply a target architecture: persist it, then generate the code changes that
+ * realize the difference from the current code-synced baseline.
+ */
+export interface ApplyRequestMessage {
+  type: 'apply:request';
+  model: ArchitectureModel;
+  instruction?: string;
+}
+
+/** Cancel the in-flight AI job. */
+export interface AiCancelMessage {
+  type: 'ai:cancel';
+}
+
+/** Ask the host to prompt for and store an Anthropic API key. */
+export interface ConfigureAuthMessage {
+  type: 'auth:configure';
+}
+
+export type WebviewToHostMessage =
+  | WebviewReadyMessage
+  | ModelChangedMessage
+  | DetectRequestMessage
+  | ChatSendMessage
+  | ApplyRequestMessage
+  | AiCancelMessage
+  | ConfigureAuthMessage;
