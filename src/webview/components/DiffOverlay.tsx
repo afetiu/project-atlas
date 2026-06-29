@@ -9,9 +9,10 @@ import type { ApplyResult } from '../model/useAiSession';
 interface DiffOverlayProps {
   result: ApplyResult;
   onClose: () => void;
+  onRevert: () => void;
 }
 
-export function DiffOverlay({ result, onClose }: DiffOverlayProps): JSX.Element {
+export function DiffOverlay({ result, onClose, onRevert }: DiffOverlayProps): JSX.Element {
   return (
     <div className="atlas-overlay" role="dialog" aria-modal="true">
       <div className="atlas-modal">
@@ -32,6 +33,16 @@ export function DiffOverlay({ result, onClose }: DiffOverlayProps): JSX.Element 
           )}
         </div>
         <footer className="atlas-modal__footer">
+          {result.revertable && (
+            <button
+              type="button"
+              className="atlas-button atlas-button--danger"
+              onClick={onRevert}
+              title="Restore the files this generation changed"
+            >
+              Revert changes
+            </button>
+          )}
           <button type="button" className="atlas-button" onClick={onClose}>
             Done
           </button>

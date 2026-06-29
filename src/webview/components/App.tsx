@@ -161,7 +161,13 @@ export function App(): JSX.Element {
         </aside>
       </div>
 
-      {ai.applyResult && <DiffOverlay result={ai.applyResult} onClose={ai.dismissApply} />}
+      {ai.applyResult && (
+        <DiffOverlay
+          result={ai.applyResult}
+          onClose={ai.dismissApply}
+          onRevert={ai.revertApply}
+        />
+      )}
     </div>
   );
 }

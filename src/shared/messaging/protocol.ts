@@ -81,6 +81,8 @@ export interface ApplyDoneMessage {
   type: 'apply:done';
   summary: string;
   diff: string;
+  /** Whether there are generated files that can be reverted. */
+  revertable: boolean;
 }
 
 export type HostToWebviewMessage =
@@ -130,6 +132,11 @@ export interface ApplyRequestMessage {
   instruction?: string;
 }
 
+/** Revert the files produced by the most recent code generation. */
+export interface ApplyRevertMessage {
+  type: 'apply:revert';
+}
+
 /** Cancel the in-flight AI job. */
 export interface AiCancelMessage {
   type: 'ai:cancel';
@@ -146,5 +153,6 @@ export type WebviewToHostMessage =
   | DetectRequestMessage
   | ChatSendMessage
   | ApplyRequestMessage
+  | ApplyRevertMessage
   | AiCancelMessage
   | ConfigureAuthMessage;

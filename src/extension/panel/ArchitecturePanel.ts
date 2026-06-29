@@ -29,7 +29,7 @@ import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
 import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
-import { getWorkingTreeDiff } from '../workspace/git';
+import { getWorkingTreeDiff, revertFiles } from '../workspace/git';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -48,6 +48,8 @@ export class ArchitecturePanel {
   private readonly disposables: vscode.Disposable[] = [];
   private abortController: AbortController | undefined;
   private busy = false;
+  /** State needed to revert the most recent code generation. */
+  private lastApply: { baseline: ArchitectureModel; files: string[] } | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -107,6 +109,9 @@ export class ArchitecturePanel {
         break;
       case 'apply:request':
         await this.runApply(message.model, message.instruction);
+        break;
+      case 'apply:revert':
+        await this.runRevert();
         break;
       case 'ai:cancel':
         this.abortController?.abort();
@@ -172,6 +177,7 @@ export class ArchitecturePanel {
         model,
         history,
         message,
+        (event) => this.relay('chat', event),
         this.abortController!,
       );
       let proposal: ChangeProposal | undefined;
@@ -212,7 +218,12 @@ export class ArchitecturePanel {
       const delta = diffModels(base, target);
       if (isEmptyDelta(delta)) {
         await this.deps.baseline.set(target);
-        this.post({ type: 'apply:done', summary: 'No code-relevant changes.', diff: '' });
+        this.post({
+          type: 'apply:done',
+          summary: 'No code-relevant changes.',
+          diff: '',
+          revertable: false,
+        });
         await this.pushSyncStatus(target);
         return;
       }
@@ -226,14 +237,35 @@ export class ArchitecturePanel {
         this.abortController!,
       );
       const diff = await getWorkingTreeDiff(this.deps.cwd);
+      this.lastApply = { baseline: base, files: result.touchedFiles };
       await this.deps.baseline.set(target);
-      this.post({ type: 'apply:done', summary: result.summary, diff });
+      this.post({
+        type: 'apply:done',
+        summary: result.summary,
+        diff,
+        revertable: result.touchedFiles.length > 0,
+      });
       await this.pushSyncStatus(target);
     } catch (error) {
       this.reportAiError(error);
     } finally {
       this.end();
     }
+  }
+
+  /** Revert the files from the last apply and re-surface those changes as pending. */
+  private async runRevert(): Promise<void> {
+    if (!this.lastApply || this.busy) {
+      return;
+    }
+    const { baseline, files } = this.lastApply;
+    this.lastApply = undefined;
+    await revertFiles(this.deps.cwd, files);
+    // The code no longer reflects the applied model, so roll the baseline back —
+    // the change shows up as pending again.
+    await this.deps.baseline.set(baseline);
+    const { model } = await this.deps.fileService.read();
+    await this.pushSyncStatus(model);
   }
 
   /* ------------------------------- helpers ------------------------------ */
@@ -308,12 +340,20 @@ export class ArchitecturePanel {
       return;
     }
     const message = error instanceof Error ? error.message : 'AI task failed.';
-    const cancelled = /abort/i.test(message);
-    this.post({
-      type: 'ai:error',
-      code: cancelled ? 'cancelled' : 'failed',
-      message: cancelled ? 'Task cancelled.' : message,
-    });
+    if (/abort/i.test(message)) {
+      this.post({ type: 'ai:error', code: 'cancelled', message: 'Task cancelled.' });
+      return;
+    }
+    if (/ENOENT|spawn|not found|no such file/i.test(message)) {
+      this.post({
+        type: 'ai:error',
+        code: 'failed',
+        message:
+          'Claude CLI not found. Install Claude Code, set "atlas.claudeExecutablePath", or set an API key.',
+      });
+      return;
+    }
+    this.post({ type: 'ai:error', code: 'failed', message });
   }
 
   private post(message: HostToWebviewMessage): void {

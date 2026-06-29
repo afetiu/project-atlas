@@ -8,10 +8,35 @@
  */
 
 import { exec } from 'child_process';
+import { rm } from 'fs/promises';
 import { promisify } from 'util';
 
 const run = promisify(exec);
 const MAX_DIFF_CHARS = 200_000;
+
+/**
+ * Revert a specific set of files produced by code generation:
+ *  - tracked files are restored to their committed state,
+ *  - newly created files are unstaged and deleted.
+ * Scoped to exactly the files the agent touched, so unrelated work is safe.
+ */
+export async function revertFiles(cwd: string, files: string[]): Promise<void> {
+  for (const file of files) {
+    try {
+      await run(`git ls-files --error-unmatch -- ${quote(file)}`, { cwd });
+      // Tracked → restore committed contents.
+      await run(`git checkout HEAD -- ${quote(file)}`, { cwd });
+    } catch {
+      // Untracked → unstage any intent-to-add and remove the file.
+      await run(`git reset -q -- ${quote(file)}`, { cwd }).catch(() => undefined);
+      await rm(file, { force: true }).catch(() => undefined);
+    }
+  }
+}
+
+function quote(p: string): string {
+  return `'${p.replace(/'/g, `'\\''`)}'`;
+}
 
 export async function getWorkingTreeDiff(cwd: string): Promise<string> {
   try {

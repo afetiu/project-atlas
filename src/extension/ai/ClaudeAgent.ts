@@ -52,6 +52,8 @@ export class AiError extends Error {
 export interface CodegenResult {
   summary: string;
   sessionId?: string;
+  /** Files the agent created or edited, for an optional revert. */
+  touchedFiles: string[];
 }
 
 export class ClaudeAgent {
@@ -93,6 +95,7 @@ export class ClaudeAgent {
     model: ArchitectureModel,
     history: ChatTurn[],
     message: string,
+    onEvent: AgentEventHandler,
     abortController: AbortController,
   ): Promise<ChatResponse> {
     const options = await this.baseOptions(cwd, abortController, {
@@ -105,6 +108,7 @@ export class ClaudeAgent {
     const query = await loadQuery();
     let structured: unknown;
     for await (const event of query({ prompt: composeChatPrompt(history, message), options })) {
+      this.relayProgress(event, onEvent);
       if (event.type === 'result') {
         structured = this.requireSuccess(event).structured_output;
       }
@@ -132,11 +136,13 @@ export class ClaudeAgent {
     const query = await loadQuery();
     let summary = '';
     let sessionId: string | undefined;
+    const touched = new Set<string>();
     for await (const message of query({
       prompt: buildCodegenPrompt(delta, model, instruction),
       options,
     })) {
       this.relayProgress(message, onEvent);
+      collectTouchedFiles(message, touched);
       if (message.type === 'system' && message.subtype === 'init') {
         sessionId = message.session_id;
       }
@@ -144,7 +150,7 @@ export class ClaudeAgent {
         summary = this.requireSuccess(message).result;
       }
     }
-    return { summary, sessionId };
+    return { summary, sessionId, touchedFiles: [...touched] };
   }
 
   /** Shared option scaffolding: auth env, executable, model, cancellation. */
@@ -209,6 +215,20 @@ interface ContentBlock {
 function contentBlocks(message: Extract<SDKMessage, { type: 'assistant' }>): ContentBlock[] {
   const content = (message.message as { content?: unknown }).content;
   return Array.isArray(content) ? (content as ContentBlock[]) : [];
+}
+
+function collectTouchedFiles(message: SDKMessage, touched: Set<string>): void {
+  if (message.type !== 'assistant') {
+    return;
+  }
+  for (const block of contentBlocks(message)) {
+    if (block.type === 'tool_use' && (block.name === 'Write' || block.name === 'Edit')) {
+      const file = (block.input as Record<string, unknown> | undefined)?.file_path;
+      if (typeof file === 'string') {
+        touched.add(file);
+      }
+    }
+  }
 }
 
 function describeToolInput(input: unknown): string {

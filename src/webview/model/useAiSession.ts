@@ -30,6 +30,7 @@ export interface ChatMessage {
 export interface ApplyResult {
   summary: string;
   diff: string;
+  revertable: boolean;
 }
 
 export interface AiErrorState {
@@ -49,6 +50,7 @@ export interface AiSession {
   applyTarget: (model: ArchitectureModel, instruction?: string) => void;
   cancel: () => void;
   configureAuth: () => void;
+  revertApply: () => void;
   dismissApply: () => void;
   dismissError: () => void;
 }
@@ -98,7 +100,11 @@ export function useAiSession(): AiSession {
           setPendingSummary(message.pendingSummary);
           break;
         case 'apply:done':
-          setApplyResult({ summary: message.summary, diff: message.diff });
+          setApplyResult({
+            summary: message.summary,
+            diff: message.diff,
+            revertable: message.revertable,
+          });
           break;
       }
     });
@@ -128,6 +134,10 @@ export function useAiSession(): AiSession {
 
   const cancel = useCallback(() => postToHost({ type: 'ai:cancel' }), []);
   const configureAuth = useCallback(() => postToHost({ type: 'auth:configure' }), []);
+  const revertApply = useCallback(() => {
+    postToHost({ type: 'apply:revert' });
+    setApplyResult(null);
+  }, []);
   const dismissApply = useCallback(() => setApplyResult(null), []);
   const dismissError = useCallback(() => setError(null), []);
 
@@ -143,6 +153,7 @@ export function useAiSession(): AiSession {
     applyTarget,
     cancel,
     configureAuth,
+    revertApply,
     dismissApply,
     dismissError,
   };
