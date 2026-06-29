@@ -51,18 +51,43 @@ const webviewConfig = {
   },
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const mcpConfig = {
+  ...common,
+  entryPoints: ['src/mcp/server.ts'],
+  outfile: 'dist/mcp-server.mjs',
+  platform: 'node',
+  // ESM output keeps the MCP SDK's import.meta.url usage valid, and Node runs
+  // the .mjs directly when Claude Code launches it.
+  format: 'esm',
+  // Bundled CJS dependencies (e.g. ajv) call require() for Node built-ins.
+  // Recreate a real require/__dirname in the ESM output so they resolve.
+  banner: {
+    js: [
+      "import { createRequire as __atlasCreateRequire } from 'module';",
+      "import { fileURLToPath as __atlasFileURLToPath } from 'url';",
+      "import { dirname as __atlasDirname } from 'path';",
+      'const require = __atlasCreateRequire(import.meta.url);',
+      'const __filename = __atlasFileURLToPath(import.meta.url);',
+      'const __dirname = __atlasDirname(__filename);',
+    ].join('\n'),
+  },
+};
+
 async function build() {
   if (watch) {
-    const [extCtx, webCtx] = await Promise.all([
+    const contexts = await Promise.all([
       esbuild.context(extensionConfig),
       esbuild.context(webviewConfig),
+      esbuild.context(mcpConfig),
     ]);
-    await Promise.all([extCtx.watch(), webCtx.watch()]);
+    await Promise.all(contexts.map((ctx) => ctx.watch()));
     console.log('[atlas] watching for changes…');
   } else {
     await Promise.all([
       esbuild.build(extensionConfig),
       esbuild.build(webviewConfig),
+      esbuild.build(mcpConfig),
     ]);
     console.log('[atlas] build complete.');
   }
