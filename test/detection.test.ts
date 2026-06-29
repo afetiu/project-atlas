@@ -115,6 +115,7 @@ test('preserves existing positions when requested', () => {
     version: 1,
     nodes: [{ id: 'a', name: 'A', type: 'service', description: '', position: { x: 500, y: 600 } }],
     edges: [],
+    groups: [],
   };
   const detected: DetectedArchitecture = {
     nodes: [{ id: 'a', name: 'A', type: 'service' }],

@@ -11,6 +11,7 @@
 import { readFile, rename, writeFile } from 'fs/promises';
 import { isAbsolute, join, normalize } from 'path';
 
+import { uniqueSlug } from '../shared/model/ids';
 import { computeLayout } from '../shared/model/layout';
 import { isNodeTypeId, type NodeTypeId } from '../shared/model/nodeTypes';
 import { DEFAULT_PROTOCOL, isProtocolId, type ProtocolId } from '../shared/model/protocols';
@@ -84,21 +85,7 @@ export function withAutoLayout(model: ArchitectureModel): ArchitectureModel {
 }
 
 export function makeUniqueId(existing: Iterable<string>, base: string): string {
-  const used = new Set(existing);
-  const slug =
-    base
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'node';
-  if (!used.has(slug)) {
-    return slug;
-  }
-  let counter = 2;
-  while (used.has(`${slug}-${counter}`)) {
-    counter += 1;
-  }
-  return `${slug}-${counter}`;
+  return uniqueSlug(base, existing);
 }
 
 export function findNode(model: ArchitectureModel, id: string): ArchitectureNode | undefined {

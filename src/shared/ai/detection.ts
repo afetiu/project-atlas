@@ -15,6 +15,7 @@ import { NODE_TYPE_IDS, isNodeTypeId } from '../model/nodeTypes';
 import { PROTOCOL_IDS, DEFAULT_PROTOCOL, isProtocolId } from '../model/protocols';
 import { computeLayout } from '../model/layout';
 import { groupColorForIndex } from '../model/groups';
+import { slugify, uniqueId } from '../model/ids';
 import {
   CURRENT_MODEL_VERSION,
   type ArchitectureEdge,
@@ -229,23 +230,3 @@ function toMapping(raw: DetectedNode): NodeCodeMapping | undefined {
   return mapping.path || mapping.language || mapping.framework ? mapping : undefined;
 }
 
-function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'node'
-  );
-}
-
-function uniqueId(base: string, used: Set<string>): string {
-  if (!used.has(base)) {
-    return base;
-  }
-  let counter = 2;
-  while (used.has(`${base}-${counter}`)) {
-    counter += 1;
-  }
-  return `${base}-${counter}`;
-}
