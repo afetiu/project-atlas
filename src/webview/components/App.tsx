@@ -11,7 +11,12 @@ import { useReactFlow } from 'reactflow';
 import { diffModels, summarizeDelta } from '../../shared/model/diff';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
-import { evaluateRules, topSeverity, type RuleSeverity } from '../../shared/rules/rules';
+import {
+  BUILT_IN_RULES,
+  evaluateRules,
+  topSeverity,
+  type RuleSeverity,
+} from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
 import { postToHost } from '../vscodeApi';
@@ -93,7 +98,10 @@ export function App(): JSX.Element {
   );
 
   const driftedNodes = useMemo(() => new Set(ai.driftedNodeIds), [ai.driftedNodeIds]);
-  const violations = useMemo(() => evaluateRules(model), [model]);
+  const violations = useMemo(
+    () => evaluateRules(model, [...BUILT_IN_RULES, ...ai.customRules]),
+    [model, ai.customRules],
+  );
   const issueByNode = useMemo(() => {
     const grouped = new Map<string, RuleSeverity>();
     const byNode = new Map<string, typeof violations>();

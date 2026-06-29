@@ -49,7 +49,8 @@ read and write.
   both directions; everything auto-saves.
 - **Architecture rules** — built-in checks (a frontend reaching a datastore
   directly, components with no code mapping, orphaned nodes) surface in an Issues
-  panel and as badges on the canvas.
+  panel and as badges on the canvas. Add your own in `atlas.rules.yaml`, and gate
+  pull requests with the `atlas check` CLI (`node dist/atlas-check.mjs`).
 - **MCP interop** — Atlas exposes the live map as an MCP server, so your existing
   Claude Code can read and edit the architecture too. Its edits appear on the
   canvas instantly.

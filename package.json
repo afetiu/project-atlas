@@ -90,6 +90,7 @@
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node scripts/run-tests.mjs",
+    "check": "node dist/atlas-check.mjs",
     "lint": "eslint src --ext ts,tsx",
     "package": "vsce package"
   },

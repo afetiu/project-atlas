@@ -7,9 +7,11 @@
  * components stay declarative and never touch the message bus directly.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { stripProposalBlock, type ChatTurn } from '../../shared/ai/chat';
+import { compileRules } from '../../shared/rules/custom';
+import type { ArchitectureRule } from '../../shared/rules/rules';
 import type {
   AiJob,
   ChangeProposal,
@@ -50,6 +52,7 @@ export interface AiSession {
   messages: ChatMessage[];
   pendingSummary: string[];
   driftedNodeIds: string[];
+  customRules: ArchitectureRule[];
   applyResult: ApplyResult | null;
   error: AiErrorState | null;
   detect: () => void;
@@ -70,6 +73,8 @@ export function useAiSession(): AiSession {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingSummary, setPendingSummary] = useState<string[]>([]);
   const [driftedNodeIds, setDriftedNodeIds] = useState<string[]>([]);
+  const [rulesText, setRulesText] = useState('');
+  const customRules = useMemo(() => compileRules(rulesText), [rulesText]);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<AiErrorState | null>(null);
 
@@ -128,6 +133,9 @@ export function useAiSession(): AiSession {
         case 'drift:status':
           setDriftedNodeIds(message.driftedNodeIds);
           break;
+        case 'rules:config':
+          setRulesText(message.text);
+          break;
         case 'apply:done':
           setApplyResult({
             summary: message.summary,
@@ -181,6 +189,7 @@ export function useAiSession(): AiSession {
     messages,
     pendingSummary,
     driftedNodeIds,
+    customRules,
     applyResult,
     error,
     detect,

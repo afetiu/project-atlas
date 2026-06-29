@@ -1,0 +1,24 @@
+# Example custom architecture rules.
+#
+# Copy to `atlas.rules.yaml` at your workspace root. Atlas evaluates these
+# alongside the built-in rules (in the Issues panel and via `atlas check`).
+# Rules are declarative — no code — so they're safe to share across a team.
+
+rules:
+  # A frontend must never reach a datastore directly; go through a service.
+  - id: no-frontend-datastore
+    severity: error
+    forbidEdge:
+      fromType: frontend
+      toType: [database, cache]
+
+  # Every service should be mapped to code so it can be generated/verified.
+  - id: services-need-code
+    severity: warning
+    requireField: mapping
+
+  # Don't let one bounded context reach into another context's database.
+  - id: no-cross-context-database
+    severity: error
+    forbidCrossContextEdge:
+      toType: database

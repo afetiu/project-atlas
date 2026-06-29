@@ -183,6 +183,7 @@ export class ArchitecturePanel {
   private async onRepoChanged(): Promise<void> {
     const { model } = await this.deps.fileService.read();
     await this.pushDriftStatus(model);
+    await this.pushRulesConfig();
 
     const autoSync = vscode.workspace.getConfiguration('atlas').get<boolean>('autoSync', false);
     if (!autoSync || this.busy) {
@@ -201,6 +202,17 @@ export class ArchitecturePanel {
   private async pushDriftStatus(model: ArchitectureModel): Promise<void> {
     const drifted = await computeDrift(this.deps.cwd, model, this.deps.baseline.getCommit());
     this.post({ type: 'drift:status', driftedNodeIds: drifted });
+  }
+
+  private async pushRulesConfig(): Promise<void> {
+    const uri = vscode.Uri.joinPath(this.deps.workspaceFolder.uri, 'atlas.rules.yaml');
+    let text = '';
+    try {
+      text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    } catch {
+      text = ''; // no custom rules file — built-ins only
+    }
+    this.post({ type: 'rules:config', text });
   }
 
   private async runChat(message: string, history: ChatTurn[]): Promise<void> {
@@ -355,6 +367,7 @@ export class ArchitecturePanel {
     this.post({ type: 'model:loaded', model });
     await this.pushSyncStatus(model);
     await this.pushDriftStatus(model);
+    await this.pushRulesConfig();
   }
 
   private async pushSyncStatus(model: ArchitectureModel): Promise<void> {

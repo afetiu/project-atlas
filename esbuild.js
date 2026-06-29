@@ -74,21 +74,24 @@ const mcpConfig = {
   },
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const cliConfig = {
+  ...common,
+  entryPoints: ['src/cli/check.ts'],
+  outfile: 'dist/atlas-check.mjs',
+  platform: 'node',
+  format: 'esm',
+  banner: mcpConfig.banner, // same require()/__dirname shim for bundled CJS deps
+};
+
 async function build() {
+  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig];
   if (watch) {
-    const contexts = await Promise.all([
-      esbuild.context(extensionConfig),
-      esbuild.context(webviewConfig),
-      esbuild.context(mcpConfig),
-    ]);
+    const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
     await Promise.all(contexts.map((ctx) => ctx.watch()));
     console.log('[atlas] watching for changes…');
   } else {
-    await Promise.all([
-      esbuild.build(extensionConfig),
-      esbuild.build(webviewConfig),
-      esbuild.build(mcpConfig),
-    ]);
+    await Promise.all(configs.map((c) => esbuild.build(c)));
     console.log('[atlas] build complete.');
   }
 }

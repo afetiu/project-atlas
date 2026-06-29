@@ -88,6 +88,12 @@ export interface DriftStatusMessage {
   driftedNodeIds: string[];
 }
 
+/** Raw contents of atlas.rules.yaml, compiled into custom rules in the webview. */
+export interface RulesConfigMessage {
+  type: 'rules:config';
+  text: string;
+}
+
 /** A single post-codegen verification check. */
 export interface VerificationCheck {
   label: string;
@@ -122,6 +128,7 @@ export type HostToWebviewMessage =
   | ChatReplyMessage
   | SyncStatusMessage
   | DriftStatusMessage
+  | RulesConfigMessage
   | ApplyDoneMessage;
 
 /* ------------------------------------------------------------------ */
