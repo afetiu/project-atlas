@@ -19,6 +19,7 @@ import { NODE_TYPE_IDS } from '../shared/model/nodeTypes';
 import { PROTOCOL_IDS } from '../shared/model/protocols';
 import { groupColorForIndex } from '../shared/model/groups';
 import { summarizeModel } from '../shared/model/summary';
+import { evaluateRules } from '../shared/rules/rules';
 import {
   AtlasStore,
   coerceNodeType,
@@ -56,6 +57,21 @@ server.registerTool(
     inputSchema: {},
   },
   async () => text(summarizeModel(await store.read())),
+);
+
+server.registerTool(
+  'check_architecture',
+  {
+    description: 'Evaluate Atlas architecture rules and return any violations.',
+    inputSchema: {},
+  },
+  async () => {
+    const violations = evaluateRules(await store.read());
+    if (violations.length === 0) {
+      return text('No architecture issues found.');
+    }
+    return text(violations.map((v) => `[${v.severity}] ${v.message}`).join('\n'));
+  },
 );
 
 server.registerTool(

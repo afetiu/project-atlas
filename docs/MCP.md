@@ -42,6 +42,7 @@ Restart Claude Code so it picks up the new server. Confirm it loaded with `/mcp`
 | --- | --- |
 | `get_architecture_model` | Return the full model as JSON. |
 | `describe_architecture` | Concise human-readable summary. |
+| `check_architecture` | Evaluate the built-in architecture rules and return violations. |
 | `add_node` | Add a component (`name`, `type?`, `description?`, `path?`). |
 | `update_node` | Update a component by `id`. |
 | `remove_node` | Remove a component and any connections touching it. |

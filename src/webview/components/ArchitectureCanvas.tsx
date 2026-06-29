@@ -21,6 +21,7 @@ import ReactFlow, {
 } from 'reactflow';
 
 import { isNodeTypeId } from '../../shared/model/nodeTypes';
+import type { RuleSeverity } from '../../shared/rules/rules';
 import {
   ARCHITECTURE_GROUP_TYPE,
   ARCHITECTURE_NODE_TYPE,
@@ -44,6 +45,7 @@ interface ArchitectureCanvasProps {
   api: ArchitectureModelApi;
   selection: Selection;
   onSelectionChange: (selection: Selection) => void;
+  issueByNode: Map<string, RuleSeverity>;
 }
 
 const nodeTypes = {
@@ -55,6 +57,7 @@ export function ArchitectureCanvas({
   api,
   selection,
   onSelectionChange,
+  issueByNode,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
   const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode } = api;
@@ -69,9 +72,10 @@ export function ArchitectureCanvas({
     const flowNodes = toFlowNodes(model).map((node) => ({
       ...node,
       selected: node.id === selection.nodeId,
+      data: { ...node.data, issueSeverity: issueByNode.get(node.id) },
     }));
     return [...groupNodes, ...flowNodes];
-  }, [model, selection.nodeId, selection.groupId]);
+  }, [model, selection.nodeId, selection.groupId, issueByNode]);
 
   const edges = useMemo(() => {
     const flowEdges = toFlowEdges(model);

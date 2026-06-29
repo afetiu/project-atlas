@@ -15,6 +15,7 @@ import type {
   ArchitectureModel,
   ArchitectureNode,
 } from '../../shared/model/types';
+import type { RuleSeverity } from '../../shared/rules/rules';
 
 /** Custom node type keys registered with React Flow. */
 export const ARCHITECTURE_NODE_TYPE = 'architecture';
@@ -31,6 +32,8 @@ const PAD_TOP = 46;
 
 export interface ArchitectureNodeData {
   node: ArchitectureNode;
+  /** Highest severity of any rule violation on this node, for the badge. */
+  issueSeverity?: RuleSeverity;
 }
 
 export interface ArchitectureGroupData {

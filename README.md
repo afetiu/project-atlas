@@ -42,6 +42,9 @@ read and write.
   code-generation pass and shows you the resulting **git diff** to review.
 - **`atlas.yaml` as source of truth** — the canvas and file stay synchronized in
   both directions; everything auto-saves.
+- **Architecture rules** — built-in checks (a frontend reaching a datastore
+  directly, components with no code mapping, orphaned nodes) surface in an Issues
+  panel and as badges on the canvas.
 - **MCP interop** — Atlas exposes the live map as an MCP server, so your existing
   Claude Code can read and edit the architecture too. Its edits appear on the
   canvas instantly.

@@ -38,6 +38,14 @@ function ArchitectureNodeViewComponent({
         <div className="atlas-node__type">{definition.label}</div>
       </div>
 
+      {data.issueSeverity && (
+        <span
+          className={`atlas-node__badge atlas-node__badge--${data.issueSeverity}`}
+          title="This component has architecture issues"
+          aria-hidden="true"
+        />
+      )}
+
       <Handle type="source" position={Position.Right} className="atlas-handle" />
     </div>
   );

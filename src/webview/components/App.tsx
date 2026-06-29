@@ -9,19 +9,21 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider } from 'reactflow';
 
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
+import { evaluateRules, topSeverity, type RuleSeverity } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
 import { DiffOverlay } from './DiffOverlay';
 import { InspectorPanel } from './InspectorPanel';
+import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
 import { Toolbar } from './Toolbar';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
-type RightTab = 'inspector' | 'assistant';
+type RightTab = 'inspector' | 'assistant' | 'issues';
 
 export function App(): JSX.Element {
   const api = useArchitectureModel();
@@ -44,6 +46,35 @@ export function App(): JSX.Element {
     () => model.groups.find((group) => group.id === selection.groupId) ?? null,
     [model.groups, selection.groupId],
   );
+
+  const violations = useMemo(() => evaluateRules(model), [model]);
+  const issueByNode = useMemo(() => {
+    const grouped = new Map<string, RuleSeverity>();
+    const byNode = new Map<string, typeof violations>();
+    for (const v of violations) {
+      if (!v.nodeId) continue;
+      const list = byNode.get(v.nodeId) ?? [];
+      list.push(v);
+      byNode.set(v.nodeId, list);
+    }
+    for (const [nodeId, list] of byNode) {
+      const sev = topSeverity(list);
+      if (sev) grouped.set(nodeId, sev);
+    }
+    return grouped;
+  }, [violations]);
+
+  const selectNode = useCallback(
+    (id: string) => {
+      setSelection({ nodeId: id, edgeId: null, groupId: null });
+      setRightTab('inspector');
+    },
+    [],
+  );
+  const selectEdge = useCallback((id: string) => {
+    setSelection({ nodeId: null, edgeId: id, groupId: null });
+    setRightTab('inspector');
+  }, []);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
@@ -139,6 +170,7 @@ export function App(): JSX.Element {
               api={api}
               selection={selection}
               onSelectionChange={selectOnCanvas}
+              issueByNode={issueByNode}
             />
           </ReactFlowProvider>
           {model.nodes.length === 0 && !ai.status.busy && (
@@ -164,8 +196,20 @@ export function App(): JSX.Element {
               active={rightTab === 'assistant'}
               onClick={() => setRightTab('assistant')}
             />
+            <TabButton
+              label="Issues"
+              active={rightTab === 'issues'}
+              onClick={() => setRightTab('issues')}
+              badge={violations.length}
+            />
           </div>
-          {rightTab === 'inspector' ? (
+          {rightTab === 'issues' ? (
+            <IssuesPanel
+              violations={violations}
+              onSelectNode={selectNode}
+              onSelectEdge={selectEdge}
+            />
+          ) : rightTab === 'inspector' ? (
             <InspectorPanel
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
@@ -207,10 +251,12 @@ function TabButton({
   label,
   active,
   onClick,
+  badge,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  badge?: number;
 }): JSX.Element {
   return (
     <button
@@ -221,6 +267,7 @@ function TabButton({
       onClick={onClick}
     >
       {label}
+      {badge ? <span className="atlas-tab__badge">{badge}</span> : null}
     </button>
   );
 }

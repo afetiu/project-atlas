@@ -169,6 +169,7 @@ body {
 /* ---------------- Nodes ---------------- */
 
 .atlas-node {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -939,4 +940,102 @@ select.atlas-input {
 
 .atlas-swatch--active {
   border-color: var(--text);
+}
+
+/* ---------------- Issues panel & badges ---------------- */
+
+.atlas-tab__badge {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-tab--active .atlas-tab__badge {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--text);
+}
+
+.atlas-issues {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.atlas-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.atlas-issue:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.atlas-issue__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex: 0 0 auto;
+}
+
+.atlas-issue__dot--error,
+.atlas-node__badge--error {
+  background: var(--danger);
+}
+
+.atlas-issue__dot--warning,
+.atlas-node__badge--warning {
+  background: #f0a868;
+}
+
+.atlas-issue__dot--info,
+.atlas-node__badge--info {
+  background: var(--accent);
+}
+
+.atlas-issue__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.atlas-issue__severity {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+.atlas-issue__message {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.atlas-node__badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-elevated);
 }
