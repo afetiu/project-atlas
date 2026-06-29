@@ -70,6 +70,11 @@ const nodeTypes = {
 
 const edgeTypes = { [ARCHITECTURE_EDGE_TYPE]: FloatingEdge };
 
+// Above this many components, hover-highlighting is disabled: re-deriving every
+// node's class on each mouse-enter stops being free, and the visual payoff
+// shrinks on a dense canvas. Selection, filtering, and drag still work.
+const HOVER_HIGHLIGHT_LIMIT = 150;
+
 /** Extract the group id from a region or collapsed-group flow-node id. */
 function groupIdOf(flowNodeId: string): string | null {
   if (flowNodeId.startsWith(GROUP_ID_PREFIX)) {
@@ -106,8 +111,11 @@ export function ArchitectureCanvas({
     endInteraction,
   } = api;
 
-  // Hovering a node highlights it and its direct neighbours, dimming the rest.
+  // Hovering a node highlights it and its direct neighbours, dimming the rest —
+  // but only while the graph is small enough for the per-hover recompute to be
+  // cheap (see HOVER_HIGHLIGHT_LIMIT).
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoverEnabled = model.nodes.length <= HOVER_HIGHLIGHT_LIMIT;
 
   const baseEdges = useMemo(() => toFlowEdges(model, collapsedGroups), [model, collapsedGroups]);
 
@@ -239,12 +247,15 @@ export function ArchitectureCanvas({
     [onSelectionChange],
   );
 
-  const handleNodeMouseEnter = useCallback((_event: React.MouseEvent, node: FlowNodeType) => {
-    // Highlight from components and collapsed contexts, not region backgrounds.
-    if (!node.id.startsWith(GROUP_ID_PREFIX)) {
-      setHoveredId(node.id);
-    }
-  }, []);
+  const handleNodeMouseEnter = useCallback(
+    (_event: React.MouseEvent, node: FlowNodeType) => {
+      // Highlight from components and collapsed contexts, not region backgrounds.
+      if (hoverEnabled && !node.id.startsWith(GROUP_ID_PREFIX)) {
+        setHoveredId(node.id);
+      }
+    },
+    [hoverEnabled],
+  );
   const handleNodeMouseLeave = useCallback(() => setHoveredId(null), []);
 
   const handleNodeDoubleClick = useCallback(
