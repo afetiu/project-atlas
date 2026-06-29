@@ -14,8 +14,10 @@
 import * as vscode from 'vscode';
 
 import {
+  applyLayout,
   AtlasParseError,
   deserializeModel,
+  serializeLayout,
   serializeModel,
 } from '../../shared/serialization/yaml';
 import {
@@ -25,6 +27,7 @@ import {
 } from '../../shared/model/types';
 
 export const ATLAS_FILE_NAME = 'atlas.yaml';
+export const ATLAS_LAYOUT_FILE_NAME = 'atlas.layout.yaml';
 
 export interface ReadResult {
   model: ArchitectureModel;
@@ -39,8 +42,10 @@ export class AtlasFileService implements vscode.Disposable {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   private readonly disposables: vscode.Disposable[] = [];
 
-  /** Last text we wrote, used to ignore our own change notifications. */
+  /** Last logical text we wrote, used to ignore our own change notifications. */
   private lastWrittenText: string | undefined;
+  /** Last layout-sidecar text we wrote. */
+  private lastWrittenLayout: string | undefined;
 
   /** Serializes write() calls so they never interleave. */
   private writeChain: Promise<void> = Promise.resolve();
@@ -69,6 +74,10 @@ export class AtlasFileService implements vscode.Disposable {
     return vscode.Uri.joinPath(this.workspaceFolder.uri, ATLAS_FILE_NAME);
   }
 
+  get layoutUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.workspaceFolder.uri, ATLAS_LAYOUT_FILE_NAME);
+  }
+
   /** Read and parse `atlas.yaml`, returning an empty model when absent. */
   async read(): Promise<ReadResult> {
     let bytes: Uint8Array;
@@ -81,13 +90,22 @@ export class AtlasFileService implements vscode.Disposable {
 
     const text = new TextDecoder().decode(bytes);
     try {
-      const model = deserializeModel(text);
-      this.futureVersion = model.version > CURRENT_MODEL_VERSION;
+      const logical = deserializeModel(text);
+      this.futureVersion = logical.version > CURRENT_MODEL_VERSION;
+      const model = applyLayout(logical, await this.readLayoutText());
       return this.futureVersion ? { model, readOnly: true } : { model };
     } catch (error) {
       const message =
         error instanceof AtlasParseError ? error.message : 'Failed to read atlas.yaml.';
       return { model: createEmptyModel(), error: message };
+    }
+  }
+
+  private async readLayoutText(): Promise<string> {
+    try {
+      return new TextDecoder().decode(await vscode.workspace.fs.readFile(this.layoutUri));
+    } catch {
+      return ''; // no sidecar yet — applyLayout falls back to auto-layout
     }
   }
 
@@ -109,16 +127,25 @@ export class AtlasFileService implements vscode.Disposable {
       // strip fields this build doesn't understand.
       return;
     }
-    const text = serializeModel(model);
-    if (text === this.lastWrittenText) {
-      return; // nothing changed since the last *successful* write
+    // The logical model (atlas.yaml) only changes on architectural edits; the
+    // layout sidecar absorbs position-only changes (e.g. dragging), keeping the
+    // source-of-truth file stable and merge-clean.
+    const logicalText = serializeModel(model);
+    if (logicalText !== this.lastWrittenText) {
+      await this.writeAtomic(this.fileUri, logicalText);
+      this.lastWrittenText = logicalText;
     }
-    const bytes = new TextEncoder().encode(text);
-    const tempUri = this.fileUri.with({ path: `${this.fileUri.path}.tmp` });
-    await vscode.workspace.fs.writeFile(tempUri, bytes);
-    await vscode.workspace.fs.rename(tempUri, this.fileUri, { overwrite: true });
-    // Only now is the write durable — record the echo marker.
-    this.lastWrittenText = text;
+    const layoutText = serializeLayout(model);
+    if (layoutText !== this.lastWrittenLayout) {
+      await this.writeAtomic(this.layoutUri, layoutText);
+      this.lastWrittenLayout = layoutText;
+    }
+  }
+
+  private async writeAtomic(uri: vscode.Uri, text: string): Promise<void> {
+    const tempUri = uri.with({ path: `${uri.path}.tmp` });
+    await vscode.workspace.fs.writeFile(tempUri, new TextEncoder().encode(text));
+    await vscode.workspace.fs.rename(tempUri, uri, { overwrite: true });
   }
 
   private async handleFileSystemEvent(): Promise<void> {

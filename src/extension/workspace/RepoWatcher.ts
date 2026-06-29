@@ -9,7 +9,8 @@
 
 import * as vscode from 'vscode';
 
-const IGNORED = /(^|[/\\])(node_modules|\.git|dist|dist-test|out)([/\\]|$)|atlas\.yaml$|\.vsix$/;
+const IGNORED =
+  /(^|[/\\])(node_modules|\.git|dist|dist-test|out)([/\\]|$)|atlas\.yaml$|atlas\.layout\.yaml$|\.vsix$|\.tmp$/;
 
 export class RepoWatcher implements vscode.Disposable {
   private readonly watcher: vscode.FileSystemWatcher;
