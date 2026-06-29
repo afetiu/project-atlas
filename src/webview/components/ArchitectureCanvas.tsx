@@ -20,7 +20,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow';
 
-import { isNodeTypeId } from '../../shared/model/nodeTypes';
+import { isNodeTypeId, type NodeTypeId } from '../../shared/model/nodeTypes';
 import type { RuleSeverity } from '../../shared/rules/rules';
 import {
   ARCHITECTURE_COLLAPSED_TYPE,
@@ -59,6 +59,7 @@ interface ArchitectureCanvasProps {
   onOpenFile: (path: string) => void;
   collapsedGroups: ReadonlySet<string>;
   onToggleCollapse: (groupId: string) => void;
+  typeFilter: ReadonlySet<NodeTypeId>;
 }
 
 const nodeTypes = {
@@ -89,6 +90,7 @@ export function ArchitectureCanvas({
   onOpenFile,
   collapsedGroups,
   onToggleCollapse,
+  typeFilter,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
   const {
@@ -123,9 +125,16 @@ export function ArchitectureCanvas({
 
   // Derive React Flow state from the model, applying the current selection.
   // Group regions are listed first so they render behind the components.
+  const filtering = typeFilter.size > 0;
   const nodes = useMemo(() => {
-    const faded = (id: string) =>
-      neighborIds && !neighborIds.has(id) ? 'atlas-faded' : undefined;
+    // A node is dimmed if hover excludes it, or a type filter is active and the
+    // node's type isn't selected. Type-less nodes (collapsed contexts) only
+    // respond to the hover dimming.
+    const faded = (id: string, type?: NodeTypeId) => {
+      const dimByHover = neighborIds ? !neighborIds.has(id) : false;
+      const dimByType = filtering && (type === undefined || !typeFilter.has(type));
+      return dimByHover || dimByType ? 'atlas-faded' : undefined;
+    };
     const groupNodes = toFlowGroups(model, collapsedGroups).map((group) => ({
       ...group,
       selected: group.id === `${GROUP_ID_PREFIX}${selection.groupId}`,
@@ -139,7 +148,7 @@ export function ArchitectureCanvas({
     const flowNodes = toFlowNodes(model, collapsedGroups).map((node) => ({
       ...node,
       selected: node.id === selection.nodeId,
-      className: faded(node.id),
+      className: faded(node.id, node.data.node.type),
       data: {
         ...node.data,
         issueSeverity: issueByNode.get(node.id),
@@ -155,6 +164,8 @@ export function ArchitectureCanvas({
     driftedNodes,
     collapsedGroups,
     neighborIds,
+    filtering,
+    typeFilter,
   ]);
 
   const edges = useMemo(() => {

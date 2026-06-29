@@ -18,9 +18,10 @@ export const PALETTE_DND_MIME = 'application/atlas-node-type';
 
 interface PaletteProps {
   onAdd: (type: NodeTypeId) => void;
+  onCollapse?: () => void;
 }
 
-export function Palette({ onAdd }: PaletteProps): JSX.Element {
+export function Palette({ onAdd, onCollapse }: PaletteProps): JSX.Element {
   const handleDragStart = (event: React.DragEvent, type: NodeTypeId) => {
     event.dataTransfer.setData(PALETTE_DND_MIME, type);
     event.dataTransfer.effectAllowed = 'move';
@@ -28,7 +29,19 @@ export function Palette({ onAdd }: PaletteProps): JSX.Element {
 
   return (
     <aside className="atlas-palette" aria-label="Node palette">
-      <div className="atlas-palette__heading">Components</div>
+      <div className="atlas-palette__heading">
+        <span>Components</span>
+        {onCollapse && (
+          <button
+            type="button"
+            className="atlas-palette__collapse"
+            title="Hide components"
+            onClick={onCollapse}
+          >
+            ◂
+          </button>
+        )}
+      </div>
       <div className="atlas-palette__list">
         {NODE_TYPE_LIST.map((definition) => (
           <button

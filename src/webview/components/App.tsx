@@ -46,6 +46,20 @@ export function App(): JSX.Element {
   const [rightTab, setRightTab] = useState<RightTab>('inspector');
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set());
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [componentsCollapsed, setComponentsCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<ReadonlySet<NodeTypeId>>(new Set());
+  const toggleTypeFilter = useCallback((type: NodeTypeId) => {
+    setTypeFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
   const [pendingApply, setPendingApply] = useState<{
     model: ArchitectureModel;
     instruction?: string;
@@ -284,7 +298,18 @@ export function App(): JSX.Element {
       )}
 
       <div className="atlas-workspace">
-        <Palette onAdd={handlePaletteAdd} />
+        {componentsCollapsed ? (
+          <button
+            type="button"
+            className="atlas-rail"
+            title="Show components"
+            onClick={() => setComponentsCollapsed(false)}
+          >
+            ▸
+          </button>
+        ) : (
+          <Palette onAdd={handlePaletteAdd} onCollapse={() => setComponentsCollapsed(true)} />
+        )}
 
         <main className="atlas-stage">
           <ArchitectureCanvas
@@ -296,8 +321,9 @@ export function App(): JSX.Element {
             onOpenFile={openFile}
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleCollapse}
+            typeFilter={typeFilter}
           />
-          <Legend model={model} />
+          <Legend model={model} activeFilter={typeFilter} onToggleFilter={toggleTypeFilter} />
           {model.nodes.length === 0 && !ai.status.busy && (
             <div className="atlas-empty">
               <div className="atlas-empty__title">Design your architecture</div>
@@ -324,6 +350,16 @@ export function App(): JSX.Element {
           )}
         </main>
 
+        {sidebarCollapsed ? (
+          <button
+            type="button"
+            className="atlas-rail"
+            title="Show panel"
+            onClick={() => setSidebarCollapsed(false)}
+          >
+            ◂
+          </button>
+        ) : (
         <aside className="atlas-sidebar">
           <div className="atlas-tabs" role="tablist">
             <TabButton
@@ -342,6 +378,14 @@ export function App(): JSX.Element {
               onClick={() => setRightTab('issues')}
               badge={violations.length}
             />
+            <button
+              type="button"
+              className="atlas-tabs__collapse"
+              title="Hide panel"
+              onClick={() => setSidebarCollapsed(true)}
+            >
+              ▸
+            </button>
           </div>
           {rightTab === 'issues' ? (
             <IssuesPanel
@@ -375,6 +419,7 @@ export function App(): JSX.Element {
             />
           )}
         </aside>
+        )}
       </div>
 
       {ai.applyResult && (

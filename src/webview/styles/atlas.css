@@ -121,11 +121,49 @@ body {
 }
 
 .atlas-palette__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
   color: var(--text-faint);
   padding: 0 6px 10px;
+}
+
+.atlas-palette__collapse {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.atlas-palette__collapse:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+/* A thin collapsed rail that reopens a hidden side panel. */
+.atlas-rail {
+  flex: 0 0 auto;
+  width: 22px;
+  border: none;
+  border-right: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-faint);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.atlas-rail:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 .atlas-palette__list {
@@ -575,6 +613,24 @@ select.atlas-input {
   color: var(--text);
   background: var(--surface);
   box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.atlas-tabs__collapse {
+  margin-left: auto;
+  align-self: center;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.atlas-tabs__collapse:hover {
+  background: var(--surface-hover);
+  color: var(--text);
 }
 
 /* ---------------- Assistant (chat) ---------------- */
@@ -1460,6 +1516,29 @@ select.atlas-input {
   align-items: center;
   gap: 8px;
   color: var(--text-dim);
+}
+
+.atlas-legend__row--filter {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), opacity var(--transition);
+}
+
+.atlas-legend__row--filter:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.atlas-legend__row--muted {
+  opacity: 0.4;
 }
 
 .atlas-legend__icon {
