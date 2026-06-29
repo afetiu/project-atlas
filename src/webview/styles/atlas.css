@@ -1039,3 +1039,23 @@ select.atlas-input {
   border-radius: 50%;
   border: 2px solid var(--bg-elevated);
 }
+
+/* ---------------- Floating edge labels ---------------- */
+
+.atlas-edge-label {
+  position: absolute;
+  pointer-events: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 10px;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+
+.atlas-edge-label--selected {
+  border-color: var(--accent);
+  color: var(--text);
+}

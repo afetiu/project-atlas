@@ -59,7 +59,8 @@ export function App(): JSX.Element {
     }
     for (const [nodeId, list] of byNode) {
       const sev = topSeverity(list);
-      if (sev) grouped.set(nodeId, sev);
+      // Keep canvas badges high-signal: only warnings and errors, not info.
+      if (sev && sev !== 'info') grouped.set(nodeId, sev);
     }
     return grouped;
   }, [violations]);

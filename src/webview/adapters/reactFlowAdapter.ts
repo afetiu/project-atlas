@@ -6,7 +6,7 @@
  * keeps the canvas library swappable in the future.
  */
 
-import type { Edge, Node } from 'reactflow';
+import { MarkerType, type Edge, type Node } from 'reactflow';
 
 import { getProtocolLabel } from '../../shared/model/protocols';
 import type {
@@ -17,9 +17,10 @@ import type {
 } from '../../shared/model/types';
 import type { RuleSeverity } from '../../shared/rules/rules';
 
-/** Custom node type keys registered with React Flow. */
+/** Custom node/edge type keys registered with React Flow. */
 export const ARCHITECTURE_NODE_TYPE = 'architecture';
 export const ARCHITECTURE_GROUP_TYPE = 'group';
+export const ARCHITECTURE_EDGE_TYPE = 'floating';
 
 /** React Flow node ids for group regions are prefixed to avoid colliding with node ids. */
 export const GROUP_ID_PREFIX = 'group:';
@@ -106,8 +107,9 @@ export function toFlowEdges(model: ArchitectureModel): FlowEdge[] {
     id: edge.id,
     source: edge.source,
     target: edge.target,
-    type: 'smoothstep',
+    type: ARCHITECTURE_EDGE_TYPE,
     label: getProtocolLabel(edge.protocol),
+    markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#5b5b69' },
     data: { protocol: edge.protocol },
   }));
 }

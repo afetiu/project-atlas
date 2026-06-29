@@ -23,6 +23,7 @@ import ReactFlow, {
 import { isNodeTypeId } from '../../shared/model/nodeTypes';
 import type { RuleSeverity } from '../../shared/rules/rules';
 import {
+  ARCHITECTURE_EDGE_TYPE,
   ARCHITECTURE_GROUP_TYPE,
   ARCHITECTURE_NODE_TYPE,
   GROUP_ID_PREFIX,
@@ -32,6 +33,7 @@ import {
 } from '../adapters/reactFlowAdapter';
 import type { ArchitectureModelApi } from '../model/useArchitectureModel';
 import { ArchitectureNodeView } from './ArchitectureNodeView';
+import { FloatingEdge } from './FloatingEdge';
 import { GroupRegion } from './GroupRegion';
 import { PALETTE_DND_MIME } from './Palette';
 
@@ -52,6 +54,8 @@ const nodeTypes = {
   [ARCHITECTURE_NODE_TYPE]: ArchitectureNodeView,
   [ARCHITECTURE_GROUP_TYPE]: GroupRegion,
 };
+
+const edgeTypes = { [ARCHITECTURE_EDGE_TYPE]: FloatingEdge };
 
 export function ArchitectureCanvas({
   api,
@@ -168,13 +172,13 @@ export function ArchitectureCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         onSelectionChange={handleSelectionChange}
         fitView
         proOptions={{ hideAttribution: true }}
-        defaultEdgeOptions={{ type: 'smoothstep' }}
         minZoom={0.2}
         maxZoom={2}
       >
