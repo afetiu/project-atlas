@@ -12,8 +12,9 @@
 
 import { execFile } from 'child_process';
 import { rm } from 'fs/promises';
-import { resolve, sep } from 'path';
 import { promisify } from 'util';
+
+import { resolveWithinRoot } from './paths';
 
 const run = promisify(execFile);
 const MAX_DIFF_CHARS = 200_000;
@@ -35,22 +36,24 @@ export async function getHeadCommit(cwd: string): Promise<string | undefined> {
  */
 export async function getChangedFilesSince(cwd: string, commit: string): Promise<string[]> {
   try {
+    // `-z` + quotePath=false keeps non-ASCII/special filenames intact (git would
+    // otherwise C-quote them, breaking downstream path matching) and lets us
+    // split on NUL instead of newline.
     const [{ stdout: changed }, { stdout: untracked }] = await Promise.all([
-      run('git', ['diff', '--name-only', commit], { cwd, ...BIG_BUFFER }),
-      run('git', ['ls-files', '--others', '--exclude-standard'], { cwd, ...BIG_BUFFER }),
+      run('git', ['-c', 'core.quotePath=false', 'diff', '--name-only', '-z', commit], {
+        cwd,
+        ...BIG_BUFFER,
+      }),
+      run('git', ['-c', 'core.quotePath=false', 'ls-files', '--others', '--exclude-standard', '-z'], {
+        cwd,
+        ...BIG_BUFFER,
+      }),
     ]);
-    const lines = `${changed}\n${untracked}`.split('\n').map((l) => l.trim());
+    const lines = `${changed}\0${untracked}`.split('\0').map((l) => l.trim());
     return lines.filter((l) => l.length > 0);
   } catch {
     return [];
   }
-}
-
-/** True when `target` resolves to a path inside `root`. */
-function isInside(root: string, target: string): boolean {
-  const resolvedRoot = resolve(root);
-  const resolvedTarget = resolve(root, target);
-  return resolvedTarget === resolvedRoot || resolvedTarget.startsWith(resolvedRoot + sep);
 }
 
 /**
@@ -61,11 +64,11 @@ function isInside(root: string, target: string): boolean {
  */
 export async function revertFiles(cwd: string, files: string[]): Promise<void> {
   for (const file of files) {
-    if (!isInside(cwd, file)) {
+    const absolute = resolveWithinRoot(cwd, file);
+    if (!absolute) {
       // Never touch anything outside the workspace, whatever the agent named.
       continue;
     }
-    const absolute = resolve(cwd, file);
     try {
       await run('git', ['ls-files', '--error-unmatch', '--', absolute], { cwd });
       await run('git', ['checkout', 'HEAD', '--', absolute], { cwd }); // tracked → restore
@@ -83,7 +86,9 @@ export async function revertFiles(cwd: string, files: string[]): Promise<void> {
  */
 export async function getWorkingTreeDiff(cwd: string, touchedFiles: string[] = []): Promise<string> {
   try {
-    const contained = touchedFiles.filter((file) => isInside(cwd, file)).map((file) => resolve(cwd, file));
+    const contained = touchedFiles
+      .map((file) => resolveWithinRoot(cwd, file))
+      .filter((p): p is string => p !== null);
     if (contained.length > 0) {
       await run('git', ['add', '-N', '--', ...contained], { cwd, ...BIG_BUFFER }).catch(() => undefined);
     }

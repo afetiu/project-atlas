@@ -6,6 +6,8 @@
  * stylesheet may load.
  */
 
+import { randomBytes } from 'crypto';
+
 import * as vscode from 'vscode';
 
 export function buildWebviewHtml(
@@ -44,10 +46,6 @@ export function buildWebviewHtml(
 }
 
 function createNonce(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let text = '';
-  for (let i = 0; i < 32; i++) {
-    text += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return text;
+  // Cryptographically random so the CSP nonce is unpredictable.
+  return randomBytes(24).toString('base64').replace(/[^a-zA-Z0-9]/g, '');
 }

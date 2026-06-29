@@ -72,6 +72,7 @@
         "atlas.claudeExecutablePath": {
           "type": "string",
           "default": "",
+          "scope": "machine-overridable",
           "description": "Absolute path to the `claude` executable. Leave empty to use the one on your PATH."
         },
         "atlas.autoSync": {
@@ -82,7 +83,8 @@
         "atlas.verifyCommand": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Command run after code generation to verify the result (e.g. `npm run typecheck`). The architecture baseline only advances when this succeeds. Leave empty to verify by mapped-path existence only."
+          "scope": "machine-overridable",
+          "markdownDescription": "Command run after code generation to verify the result (e.g. `npm run typecheck`). The architecture baseline only advances when this succeeds. Leave empty to verify by mapped-path existence only. For safety this runs only in a trusted workspace, and cannot be set by a repository's workspace settings."
         }
       }
     }

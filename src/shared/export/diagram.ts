@@ -63,7 +63,14 @@ export function toMarkdown(model: ArchitectureModel): string {
 }
 
 function escapeLabel(text: string): string {
-  return text.replace(/"/g, "'").replace(/\n/g, ' ');
+  // Neutralize characters meaningful to Mermaid so a crafted node name can't
+  // break out of a quoted label and inject diagram syntax (e.g. a `click`
+  // directive) that a downstream renderer with a permissive config might honor.
+  return text
+    .replace(/[[\]{}|<>`]/g, ' ')
+    .replace(/"/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 const SVG_NODE_W = 200;

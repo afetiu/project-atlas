@@ -33,6 +33,7 @@ import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
 import { computeDrift } from '../workspace/drift';
 import { getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
+import { resolveWithinRoot } from '../workspace/paths';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -99,6 +100,12 @@ export class ArchitecturePanel {
   /* -------------------------- message handling -------------------------- */
 
   private async handleMessage(message: WebviewToHostMessage): Promise<void> {
+    // The webview is our own bundle, but messages cross a trust boundary, so
+    // validate the envelope shape at runtime rather than trusting the static
+    // type. Anything malformed is dropped.
+    if (!message || typeof (message as { type?: unknown }).type !== 'string') {
+      return;
+    }
     switch (message.type) {
       case 'webview:ready':
         await this.pushModelToWebview();
@@ -127,14 +134,27 @@ export class ArchitecturePanel {
         await vscode.commands.executeCommand('atlas.setApiKey');
         break;
       case 'open:file':
-        await this.openMappedPath(message.path);
+        if (typeof message.path === 'string') {
+          await this.openMappedPath(message.path);
+        }
         break;
     }
   }
 
   /** Open a mapped file, or reveal it in the Explorer if it's a directory. */
   private async openMappedPath(relativePath: string): Promise<void> {
-    const uri = vscode.Uri.joinPath(this.deps.workspaceFolder.uri, relativePath);
+    // `relativePath` originates from a node's mapping.path, which can come from
+    // AI detection, the MCP server, or a checked-in atlas.yaml in an untrusted
+    // repo. Confine it to the workspace (symlink-aware) before opening anything,
+    // so a crafted `../../../etc/passwd` can't open arbitrary files.
+    const safe = resolveWithinRoot(this.deps.cwd, relativePath);
+    if (!safe) {
+      void vscode.window.showWarningMessage(
+        `Atlas refused to open a path outside the workspace: "${relativePath}".`,
+      );
+      return;
+    }
+    const uri = vscode.Uri.file(safe);
     try {
       const stat = await vscode.workspace.fs.stat(uri);
       if (stat.type === vscode.FileType.Directory) {
@@ -301,7 +321,11 @@ export class ArchitecturePanel {
       const verifyCommand = vscode.workspace
         .getConfiguration('atlas')
         .get<string>('verifyCommand');
-      const verification = await verifyCodegen(this.deps.cwd, delta, target, verifyCommand);
+      const verification = await verifyCodegen(this.deps.cwd, delta, target, {
+        command: verifyCommand,
+        trusted: vscode.workspace.isTrusted,
+        touchedFiles: result.touchedFiles,
+      });
       this.deps.logger.info(
         `Code generation complete: ${result.touchedFiles.length} file(s) touched, verification ${verification.ok ? 'PASSED' : 'FAILED'}.`,
       );

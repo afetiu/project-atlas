@@ -82,6 +82,22 @@ export function validateModel(model: ArchitectureModel): ValidationResult {
         entityId: node.id,
       });
     }
+    if (isUnsafeMappingPath(node.mapping?.path)) {
+      issues.push({
+        severity: 'warning',
+        message: `Node "${node.id}" maps to a path outside the workspace ("${node.mapping?.path}").`,
+        entityId: node.id,
+      });
+    }
+  }
+  for (const group of model.groups) {
+    if (isUnsafeMappingPath(group.mapping?.path)) {
+      issues.push({
+        severity: 'warning',
+        message: `Context "${group.id}" maps to a path outside the workspace ("${group.mapping?.path}").`,
+        entityId: group.id,
+      });
+    }
   }
 
   const seenEdgeIds = new Set<string>();
@@ -124,7 +140,19 @@ export function validateModel(model: ArchitectureModel): ValidationResult {
   return { valid, issues };
 }
 
-/** True when the new id does not collide with any existing node id. */
-export function isUniqueNodeId(model: ArchitectureModel, id: string, ignoreId?: string): boolean {
-  return !model.nodes.some((node) => node.id === id && node.id !== ignoreId);
+/**
+ * Lexical guard for a code-mapping path: flags absolute paths and `..` traversal
+ * that would point outside the workspace. This is a portable (no-fs) signal for
+ * the Issues panel; the hard enforcement is `resolveWithinRoot` at every actual
+ * filesystem boundary.
+ */
+function isUnsafeMappingPath(path: string | undefined): boolean {
+  if (!path) {
+    return false;
+  }
+  const normalized = path.replace(/\\/g, '/');
+  if (normalized.startsWith('/') || /^[a-zA-Z]:/.test(normalized)) {
+    return true; // absolute (POSIX or Windows drive)
+  }
+  return normalized.split('/').some((segment) => segment === '..');
 }

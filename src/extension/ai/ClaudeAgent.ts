@@ -7,8 +7,6 @@
  * callback so the panel can relay it to the webview.
  */
 
-import { resolve, sep } from 'path';
-
 import type { Options, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 import {
@@ -19,6 +17,7 @@ import {
 import { parseChatReply, type ChatResponse, type ChatTurn } from '../../shared/ai/chat';
 import type { ModelDelta } from '../../shared/model/diff';
 import type { ArchitectureModel } from '../../shared/model/types';
+import { resolveWithinRoot } from '../workspace/paths';
 import type { AuthProvider } from './AuthProvider';
 import { buildChatSystemPrompt, buildCodegenPrompt, buildDetectionPrompt } from './prompts';
 
@@ -246,9 +245,9 @@ function isInsideWorkspace(cwd: string, file: unknown): boolean {
   if (typeof file !== 'string' || file.length === 0) {
     return false;
   }
-  const root = resolve(cwd);
-  const target = resolve(cwd, file);
-  return target === root || target.startsWith(root + sep);
+  // Symlink-aware: a write through a pre-existing in-repo symlink that points
+  // outside the workspace must be refused even though it looks "inside" lexically.
+  return resolveWithinRoot(cwd, file) !== null;
 }
 
 /**
