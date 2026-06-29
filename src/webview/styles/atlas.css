@@ -1405,3 +1405,16 @@ select.atlas-input {
     visibility: hidden;
   }
 }
+
+/* ---------------- Drift indicator ---------------- */
+
+.atlas-node__drift {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f0a868;
+  border: 2px solid var(--bg-elevated);
+}

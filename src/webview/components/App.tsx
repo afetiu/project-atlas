@@ -92,6 +92,7 @@ export function App(): JSX.Element {
     [model.groups, selection.groupId],
   );
 
+  const driftedNodes = useMemo(() => new Set(ai.driftedNodeIds), [ai.driftedNodeIds]);
   const violations = useMemo(() => evaluateRules(model), [model]);
   const issueByNode = useMemo(() => {
     const grouped = new Map<string, RuleSeverity>();
@@ -254,6 +255,16 @@ export function App(): JSX.Element {
       </header>
 
       {error && <StatusBanner message={error} />}
+      {ai.driftedNodeIds.length > 0 && !ai.status.busy && (
+        <StatusBanner
+          tone="info"
+          message={`${ai.driftedNodeIds.length} component${
+            ai.driftedNodeIds.length === 1 ? '' : 's'
+          } changed in code since the last detection.`}
+          actionLabel="Re-detect"
+          onAction={ai.detect}
+        />
+      )}
       {ai.error && (
         <StatusBanner
           message={ai.error.message}
@@ -272,6 +283,7 @@ export function App(): JSX.Element {
             selection={selection}
             onSelectionChange={selectOnCanvas}
             issueByNode={issueByNode}
+            driftedNodes={driftedNodes}
             onOpenFile={openFile}
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleCollapse}

@@ -82,6 +82,12 @@ export interface SyncStatusMessage {
   pendingSummary: string[];
 }
 
+/** Components whose code has changed since the last detection (drift). */
+export interface DriftStatusMessage {
+  type: 'drift:status';
+  driftedNodeIds: string[];
+}
+
 /** A single post-codegen verification check. */
 export interface VerificationCheck {
   label: string;
@@ -115,6 +121,7 @@ export type HostToWebviewMessage =
   | ChatTokenMessage
   | ChatReplyMessage
   | SyncStatusMessage
+  | DriftStatusMessage
   | ApplyDoneMessage;
 
 /* ------------------------------------------------------------------ */

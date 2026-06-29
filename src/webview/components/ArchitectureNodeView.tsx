@@ -28,6 +28,14 @@ function ArchitectureNodeViewComponent({
     >
       <Handle type="target" position={Position.Left} className="atlas-handle" />
 
+      {data.drifted && (
+        <span
+          className="atlas-node__drift"
+          title="Code changed since the last detection"
+          aria-label="drifted from code"
+        />
+      )}
+
       <div className="atlas-node__icon">
         <NodeIcon type={node.type} />
       </div>

@@ -49,6 +49,7 @@ export interface AiSession {
   progress: string[];
   messages: ChatMessage[];
   pendingSummary: string[];
+  driftedNodeIds: string[];
   applyResult: ApplyResult | null;
   error: AiErrorState | null;
   detect: () => void;
@@ -68,6 +69,7 @@ export function useAiSession(): AiSession {
   const [progress, setProgress] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingSummary, setPendingSummary] = useState<string[]>([]);
+  const [driftedNodeIds, setDriftedNodeIds] = useState<string[]>([]);
   const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<AiErrorState | null>(null);
 
@@ -123,6 +125,9 @@ export function useAiSession(): AiSession {
         case 'sync:status':
           setPendingSummary(message.pendingSummary);
           break;
+        case 'drift:status':
+          setDriftedNodeIds(message.driftedNodeIds);
+          break;
         case 'apply:done':
           setApplyResult({
             summary: message.summary,
@@ -175,6 +180,7 @@ export function useAiSession(): AiSession {
     progress,
     messages,
     pendingSummary,
+    driftedNodeIds,
     applyResult,
     error,
     detect,

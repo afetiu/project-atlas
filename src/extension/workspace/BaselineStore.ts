@@ -28,4 +28,16 @@ export class BaselineStore {
   async set(model: ArchitectureModel): Promise<void> {
     await this.memento.update(this.key, model);
   }
+
+  /**
+   * The git commit the architecture was last *detected* at. Drift is measured
+   * against this, so it means "code changed since the last full detection."
+   */
+  getCommit(): string | undefined {
+    return this.memento.get<string>(`${this.key}:commit`);
+  }
+
+  async setCommit(commit: string | undefined): Promise<void> {
+    await this.memento.update(`${this.key}:commit`, commit);
+  }
 }

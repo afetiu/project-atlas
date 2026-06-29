@@ -37,6 +37,8 @@ export interface ArchitectureNodeData {
   node: ArchitectureNode;
   /** Highest severity of any rule violation on this node, for the badge. */
   issueSeverity?: RuleSeverity;
+  /** Code under this component's mapping changed since the last detection. */
+  drifted?: boolean;
 }
 
 export interface ArchitectureGroupData {

@@ -30,7 +30,8 @@ import { verifyCodegen } from '../ai/verify';
 import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
-import { getWorkingTreeDiff, revertFiles } from '../workspace/git';
+import { computeDrift } from '../workspace/drift';
+import { getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -162,8 +163,11 @@ export class ArchitecturePanel {
       );
       await this.deps.fileService.write(model);
       await this.deps.baseline.set(model);
+      // Drift is measured from the detection commit: this is "now in sync".
+      await this.deps.baseline.setCommit(await getHeadCommit(this.deps.cwd));
       this.post({ type: 'model:loaded', model });
       await this.pushSyncStatus(model);
+      await this.pushDriftStatus(model);
     } catch (error) {
       this.reportAiError(error);
     } finally {
@@ -172,25 +176,31 @@ export class ArchitecturePanel {
   }
 
   /**
-   * Auto-sync hook: re-detect when the repo changes, but never clobber pending
-   * manual edits — if the canvas is ahead of the baseline, the user is mid-edit
-   * and we leave their work alone.
+   * Repo changed: always refresh drift (cheap git query, no AI). Only auto
+   * re-detect when the user opted in and it's safe — never clobber pending
+   * manual edits still sitting in the webview's debounce.
    */
   private async onRepoChanged(): Promise<void> {
-    if (this.busy) {
+    const { model } = await this.deps.fileService.read();
+    await this.pushDriftStatus(model);
+
+    const autoSync = vscode.workspace.getConfiguration('atlas').get<boolean>('autoSync', false);
+    if (!autoSync || this.busy) {
       return;
     }
-    // Don't auto re-detect right after a canvas edit — the user's change may
-    // still be in the webview's debounce and not yet on disk.
     if (Date.now() - this.lastWebviewEditAt < 4000) {
       return;
     }
-    const { model } = await this.deps.fileService.read();
     const base = this.deps.baseline.get() ?? model;
     if (!isEmptyDelta(diffModels(base, model))) {
       return;
     }
     await this.runDetect('Syncing from code…');
+  }
+
+  private async pushDriftStatus(model: ArchitectureModel): Promise<void> {
+    const drifted = await computeDrift(this.deps.cwd, model, this.deps.baseline.getCommit());
+    this.post({ type: 'drift:status', driftedNodeIds: drifted });
   }
 
   private async runChat(message: string, history: ChatTurn[]): Promise<void> {
@@ -284,6 +294,7 @@ export class ArchitecturePanel {
         verification,
       });
       await this.pushSyncStatus(target);
+      await this.pushDriftStatus(target);
     } catch (error) {
       this.reportAiError(error);
     } finally {
@@ -338,8 +349,12 @@ export class ArchitecturePanel {
     if (!this.deps.baseline.get()) {
       await this.deps.baseline.set(model);
     }
+    if (!this.deps.baseline.getCommit()) {
+      await this.deps.baseline.setCommit(await getHeadCommit(this.deps.cwd));
+    }
     this.post({ type: 'model:loaded', model });
     await this.pushSyncStatus(model);
+    await this.pushDriftStatus(model);
   }
 
   private async pushSyncStatus(model: ArchitectureModel): Promise<void> {

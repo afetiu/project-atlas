@@ -55,6 +55,7 @@ interface ArchitectureCanvasProps {
   selection: Selection;
   onSelectionChange: (selection: Selection) => void;
   issueByNode: Map<string, RuleSeverity>;
+  driftedNodes: ReadonlySet<string>;
   onOpenFile: (path: string) => void;
   collapsedGroups: ReadonlySet<string>;
   onToggleCollapse: (groupId: string) => void;
@@ -84,6 +85,7 @@ export function ArchitectureCanvas({
   selection,
   onSelectionChange,
   issueByNode,
+  driftedNodes,
   onOpenFile,
   collapsedGroups,
   onToggleCollapse,
@@ -138,10 +140,22 @@ export function ArchitectureCanvas({
       ...node,
       selected: node.id === selection.nodeId,
       className: faded(node.id),
-      data: { ...node.data, issueSeverity: issueByNode.get(node.id) },
+      data: {
+        ...node.data,
+        issueSeverity: issueByNode.get(node.id),
+        drifted: driftedNodes.has(node.id),
+      },
     }));
     return [...groupNodes, ...collapsedNodes, ...flowNodes];
-  }, [model, selection.nodeId, selection.groupId, issueByNode, collapsedGroups, neighborIds]);
+  }, [
+    model,
+    selection.nodeId,
+    selection.groupId,
+    issueByNode,
+    driftedNodes,
+    collapsedGroups,
+    neighborIds,
+  ]);
 
   const edges = useMemo(() => {
     return baseEdges.map((edge) => {

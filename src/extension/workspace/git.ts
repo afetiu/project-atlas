@@ -19,6 +19,33 @@ const run = promisify(execFile);
 const MAX_DIFF_CHARS = 200_000;
 const BIG_BUFFER = { maxBuffer: 1024 * 1024 * 32 };
 
+/** The current HEAD commit hash, or undefined when not a git repo. */
+export async function getHeadCommit(cwd: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await run('git', ['rev-parse', 'HEAD'], { cwd });
+    return stdout.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Workspace-relative paths changed since `commit` — committed and uncommitted
+ * modifications plus untracked files. Used for drift detection.
+ */
+export async function getChangedFilesSince(cwd: string, commit: string): Promise<string[]> {
+  try {
+    const [{ stdout: changed }, { stdout: untracked }] = await Promise.all([
+      run('git', ['diff', '--name-only', commit], { cwd, ...BIG_BUFFER }),
+      run('git', ['ls-files', '--others', '--exclude-standard'], { cwd, ...BIG_BUFFER }),
+    ]);
+    const lines = `${changed}\n${untracked}`.split('\n').map((l) => l.trim());
+    return lines.filter((l) => l.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 /** True when `target` resolves to a path inside `root`. */
 function isInside(root: string, target: string): boolean {
   const resolvedRoot = resolve(root);
