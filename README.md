@@ -151,6 +151,12 @@ groups:
     color: '#4fd1a1'
 ```
 
+Node **positions** live in a separate `atlas.layout.yaml` sidecar, so `atlas.yaml`
+(the source of truth) only changes on real architectural edits — not on every
+drag — and reviews cleanly as a pull request. Entities are sorted by id to avoid
+ordering conflicts. Commit the sidecar too, or `.gitignore` it if you treat
+layout as a personal preference.
+
 ---
 
 ## Documentation
