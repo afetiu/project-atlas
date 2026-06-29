@@ -32,6 +32,9 @@ read and write.
   component maps to).
 - **Edit it visually** — drag & drop, zoom, pan, connect, and inspect on an
   interactive [React Flow](https://reactflow.dev) canvas.
+- **Bounded contexts** — group components into domains, rendered as auto-fitted
+  regions. Detection, chat, and Claude Code (via MCP) can all organize the map
+  into contexts.
 - **Talk to an architecture copilot** — ask questions, or describe a change
   (“add a Redis cache in front of the orders DB”). The AI replies and can return
   a proposal to apply.
@@ -123,6 +126,7 @@ nodes:
     type: service          # service | database | queue | externalApi | frontend | cache
     description: Owns the order lifecycle.
     position: { x: 360, y: 80 }
+    groupId: orders            # optional bounded context membership
     mapping:
       path: src/services/orders   # links the component to its code
       language: typescript
@@ -132,6 +136,11 @@ edges:
     source: orders-service
     target: orders-db
     protocol: grpc         # http | grpc | graphql | kafka | rabbitmq | redis | custom
+groups:
+  - id: orders
+    name: Orders
+    description: Order management bounded context.
+    color: '#4fd1a1'
 ```
 
 ---

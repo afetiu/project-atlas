@@ -11,6 +11,7 @@ nodes:
     type: frontend
     description: React single-page application served to end users.
     position: { x: 80, y: 80 }
+    groupId: edge
     mapping:
       path: apps/web
       language: typescript
@@ -20,15 +21,23 @@ nodes:
     type: service
     description: Authenticates requests and routes them to internal services.
     position: { x: 360, y: 80 }
+    groupId: edge
     mapping:
       path: services/gateway
       language: typescript
       framework: express
+  - id: session-cache
+    name: Session Cache
+    type: cache
+    description: Short-lived session and rate-limit state.
+    position: { x: 360, y: 240 }
+    groupId: edge
   - id: orders-service
     name: Orders Service
     type: service
     description: Owns the order lifecycle and emits domain events.
-    position: { x: 640, y: 0 }
+    position: { x: 680, y: 0 }
+    groupId: orders
     mapping:
       path: services/orders
       language: typescript
@@ -36,24 +45,21 @@ nodes:
     name: Orders DB
     type: database
     description: PostgreSQL store for orders and line items.
-    position: { x: 920, y: 0 }
+    position: { x: 980, y: 0 }
+    groupId: orders
     mapping:
       framework: postgres
   - id: events
     name: Event Bus
     type: queue
     description: Streams domain events to downstream consumers.
-    position: { x: 640, y: 180 }
-  - id: session-cache
-    name: Session Cache
-    type: cache
-    description: Short-lived session and rate-limit state.
-    position: { x: 360, y: 240 }
+    position: { x: 680, y: 180 }
+    groupId: orders
   - id: payments
     name: Payments Provider
     type: externalApi
     description: Third-party payment processing API.
-    position: { x: 920, y: 200 }
+    position: { x: 980, y: 200 }
 edges:
   - id: edge-web-app-api-gateway
     source: web-app
@@ -79,3 +85,12 @@ edges:
     source: orders-service
     target: payments
     protocol: http
+groups:
+  - id: edge
+    name: Edge
+    description: Public-facing entry layer.
+    color: '#56c5ff'
+  - id: orders
+    name: Orders
+    description: Order management bounded context.
+    color: '#4fd1a1'

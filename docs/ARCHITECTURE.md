@@ -44,7 +44,7 @@ the same core powers the extension, the React app, and a separate Node process.
 
 | Module | Responsibility |
 | --- | --- |
-| `model/types.ts` | `ArchitectureModel`, nodes, edges, and the node→code `mapping`. |
+| `model/types.ts` | `ArchitectureModel`, nodes, edges, bounded-context `groups`, and the node→code `mapping`. |
 | `model/nodeTypes.ts`, `model/protocols.ts` | Registries of node types and protocols. |
 | `model/diff.ts` | Semantic delta between two models — the basis for code generation. |
 | `model/layout.ts` | Deterministic layered auto-layout for AI-detected graphs. |

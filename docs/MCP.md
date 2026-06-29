@@ -47,6 +47,8 @@ Restart Claude Code so it picks up the new server. Confirm it loaded with `/mcp`
 | `remove_node` | Remove a component and any connections touching it. |
 | `connect` | Connect two components (`source`, `target`, `protocol?`). |
 | `disconnect` | Remove a connection. |
+| `assign_to_group` | Add a component to a bounded context, creating it if needed. |
+| `remove_from_group` | Remove a component from its bounded context. |
 
 Every mutation is validated against the same invariants the extension enforces,
 then written to `atlas.yaml`. Invalid operations return an error and leave the
