@@ -1,47 +1,68 @@
 # Atlas
 
-**A visual architecture workspace for VS Code where the architecture model is the source of truth.**
+**A visual architecture workspace for VS Code where the architecture model is the source of truth — and code becomes a generated artifact.**
 
-Atlas is not a diagramming tool. It is the foundation for treating your system's
-architecture as a first-class, editable model — one that lives in your
-repository as a plain `atlas.yaml` file and stays in lock-step with a clean,
-interactive canvas.
+Atlas is not a diagramming tool. It is an editable "map of the world" for your
+system: AI generates it from your real repository, you reshape it visually or by
+talking to a copilot, and every structural change becomes a *proposed* code
+change you review before it's applied.
 
 ```
-Architecture Canvas
-        ↓
-   atlas.yaml   ← source of truth
-        ↓
-    AI Agent          (future)
-        ↓
-   Code Changes       (future)
-        ↓
-    Git Diff          (future)
+        ┌──────────────────── Atlas workspace ────────────────────┐
+Repo ──► AI detection ──► atlas.yaml ──► editable canvas + AI chat
+                              ▲                    │
+                              │     drag / connect / rename / chat
+                              │                    ▼
+                              └──── interpret ──► confirm ──► Apply
+                                                               │
+                                                               ▼
+                                                    code generation ──► git diff
 ```
 
-This repository is **Phase 1 (MVP)**: the visual architecture editor. It proves
-that architecture can be edited visually and persisted as a versionable model.
-AI code generation and the other roadmap items are intentionally **not**
-implemented yet — but the codebase is structured so they can plug in naturally.
+`atlas.yaml` lives in your repo as plain, diff-friendly YAML — the single source
+of truth that the canvas, the AI, and (optionally) your existing Claude Code all
+read and write.
 
 ---
 
-## Features
+## What it does
 
-- **`Atlas: Open Architecture` command** — launches the architecture canvas in a
-  Webview panel.
-- **Interactive canvas** (built on [React Flow](https://reactflow.dev)) — drag &
-  drop, zoom, pan, select, move, and connect nodes.
-- **Six node types** — Service, Database, Queue, External API, Frontend, Cache.
-- **Typed connections** — HTTP, gRPC, GraphQL, Kafka, RabbitMQ, Redis, Custom.
-- **`atlas.yaml` as the single source of truth** — the entire graph serializes
-  to your workspace root and stays bi-directionally synchronized: edit the
-  canvas and the file updates; edit the file and the canvas updates.
-- **Inspector side panel** — click a node or connection to edit its fields.
-- **Auto-save** — every change is debounced and written to disk. No save button.
-- **Validation** — duplicate IDs, broken edges, and invalid YAML are caught
-  before they corrupt the model.
+- **Detect architecture from code** — Claude analyzes the repository and
+  produces the architecture map (components, connections, and the code path each
+  component maps to).
+- **Edit it visually** — drag & drop, zoom, pan, connect, and inspect on an
+  interactive [React Flow](https://reactflow.dev) canvas.
+- **Talk to an architecture copilot** — ask questions, or describe a change
+  (“add a Redis cache in front of the orders DB”). The AI replies and can return
+  a proposal to apply.
+- **Apply → generate code** — applying pending changes runs an agentic
+  code-generation pass and shows you the resulting **git diff** to review.
+- **`atlas.yaml` as source of truth** — the canvas and file stay synchronized in
+  both directions; everything auto-saves.
+- **MCP interop** — Atlas exposes the live map as an MCP server, so your existing
+  Claude Code can read and edit the architecture too. Its edits appear on the
+  canvas instantly.
 - **Modern dark-first UI** — clean, rounded, minimal. Linear × Raycast × VS Code.
+
+> Phase 1 was the visual editor. This release adds the AI layer (detection,
+> chat, code generation) and the MCP server. See the [roadmap](#roadmap) for
+> what's intentionally still ahead.
+
+---
+
+## How AI is wired in
+
+Atlas talks to Claude two complementary ways:
+
+| Layer | Powers | Mechanism |
+| --- | --- | --- |
+| **Atlas-native AI** | In-canvas *Detect*, *chat*, and *Apply → code* | [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) in the extension host |
+| **MCP server** | Your existing Claude Code reading/editing the map | An MCP stdio server over `atlas.yaml` |
+
+The Agent SDK runs the agentic loop (read the repo, return structured JSON, edit
+files); the MCP server is a second door into the same `atlas.yaml`. Because both
+write the one file, and Atlas watches that file, every change — wherever it comes
+from — shows up live on the canvas.
 
 ---
 
@@ -51,6 +72,8 @@ implemented yet — but the codebase is structured so they can plug in naturally
 
 - [Node.js](https://nodejs.org) 18+ and npm
 - [VS Code](https://code.visualstudio.com) 1.85+
+- The [`claude` CLI](https://code.claude.com/docs) installed and logged in
+  **or** an Anthropic API key (for the AI features)
 
 ### Install & build
 
@@ -61,16 +84,18 @@ npm run build
 
 ### Run it
 
-1. Open this folder in VS Code.
-2. Press <kbd>F5</kbd> (**Run Atlas Extension**). A second VS Code window — the
-   Extension Development Host — opens.
-3. In that window, open any folder, then run **`Atlas: Open Architecture`** from
-   the Command Palette (<kbd>Cmd/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>).
-4. Drag a component from the palette onto the canvas. Watch `atlas.yaml` appear
-   at the workspace root and update as you edit.
+1. Open this folder in VS Code and press <kbd>F5</kbd> (**Run Atlas Extension**).
+2. In the Extension Development Host window, open a project folder.
+3. Run **`Atlas: Open Architecture`** from the Command Palette.
+4. Click **Detect from code** to generate the map — or drag components from the
+   palette to draw one by hand.
 
-To try it with sample data, copy [`atlas.example.yaml`](./atlas.example.yaml)
-to `atlas.yaml` in your test workspace before opening the canvas.
+### Authentication
+
+Atlas prefers your existing Claude Code login (no setup needed if you're already
+logged in). To use an explicit key instead, run **`Atlas: Set Anthropic API
+Key`** — it's stored in VS Code SecretStorage. You can also pin a model or a
+`claude` path in **Settings → Atlas**.
 
 ---
 
@@ -78,64 +103,61 @@ to `atlas.yaml` in your test workspace before opening the canvas.
 
 | Action | How |
 | --- | --- |
-| Add a node | Drag a component from the left palette onto the canvas (or click it) |
-| Move a node | Drag it |
-| Connect nodes | Drag from a node's right handle to another node's left handle |
-| Select | Click a node or connection |
-| Edit | Use the inspector panel on the right |
-| Delete | Select, then press <kbd>Backspace</kbd>/<kbd>Delete</kbd> or use the inspector |
-| Pan / zoom | Drag the canvas / scroll or pinch |
+| Generate the map from code | **Detect from code** (toolbar) or `Atlas: Detect Architecture` |
+| Add / move / connect / edit | Palette + canvas + the Inspector tab |
+| Ask or request a change | The **Assistant** tab — chat with the copilot |
+| Apply a chat proposal | **Apply & generate code** on the proposal card |
+| Apply your own canvas edits | **Apply N changes** (toolbar) → review the diff |
+| Let Claude Code edit the map | `Atlas: Register MCP Server`, then use Claude Code |
 
-All edits auto-save to `atlas.yaml`.
+All architecture edits auto-save to `atlas.yaml`. Code changes are only made when
+you explicitly apply, and are always shown as a diff first.
 
 ### The `atlas.yaml` format
 
 ```yaml
 version: 1
 nodes:
-  - id: api-gateway
-    name: API Gateway
+  - id: orders-service
+    name: Orders Service
     type: service          # service | database | queue | externalApi | frontend | cache
-    description: Routes requests to internal services.
+    description: Owns the order lifecycle.
     position: { x: 360, y: 80 }
+    mapping:
+      path: src/services/orders   # links the component to its code
+      language: typescript
+      framework: express
 edges:
-  - id: edge-api-gateway-orders
-    source: api-gateway
-    target: orders-service
+  - id: edge-orders-service-orders-db
+    source: orders-service
+    target: orders-db
     protocol: grpc         # http | grpc | graphql | kafka | rabbitmq | redis | custom
 ```
-
-The file is plain, diff-friendly YAML — commit it alongside your code and review
-architecture changes in pull requests like any other artifact.
 
 ---
 
 ## Documentation
 
-- [**Architecture**](./docs/ARCHITECTURE.md) — how the extension is structured
-  and why, plus the extension points designed for future growth.
-- [**Development**](./docs/DEVELOPMENT.md) — local setup, build pipeline,
-  project layout, and how to add a node type or protocol.
+- [**Architecture**](./docs/ARCHITECTURE.md) — how the extension is structured,
+  the AI and MCP layers, the sync model, and the extension points for future
+  growth.
+- [**Development**](./docs/DEVELOPMENT.md) — setup, build pipeline, project
+  layout, and how to extend it.
+- [**MCP**](./docs/MCP.md) — connecting the Atlas MCP server to Claude Code.
 
 ---
 
 ## Roadmap
 
-Phase 1 deliberately stops at the visual editor. The architecture is designed so
-that each of the following can be added without reworking the core:
+Designed so each of these attaches to the model rather than threading through the
+UI:
 
-- AI code generation from the model
-- Live architecture ↔ code sync
-- Git integration & architecture history
-- Deeper architecture validation rules
-- Deployment & Kubernetes visualization
-- Runtime metrics overlays
+- Live architecture ↔ code sync (continuous, not just on demand)
+- Deeper architecture validation & policy rules
+- Deployment, Kubernetes, and runtime-metrics overlays
 - DDD bounded contexts, sequence diagrams, event-flow views
-- ADR generation
+- ADR generation & architecture history
 - Multi-repository workspaces
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md#extension-points) for the
-concrete extension points each of these would hook into.
 
 ---
 

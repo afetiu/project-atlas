@@ -4,6 +4,14 @@
 
 - Node.js 18+ and npm
 - VS Code 1.85+
+- For the AI features: the `claude` CLI installed and logged in, **or** an
+  Anthropic API key (`Atlas: Set Anthropic API Key`)
+
+`npm run build` emits three bundles into `dist/`:
+`extension.js` (host, CJS), `webview.js`/`webview.css` (canvas, IIFE), and
+`mcp-server.mjs` (MCP server, ESM). The Agent SDK is intentionally **not**
+bundled — it is loaded at runtime via dynamic `import()` (see
+[ARCHITECTURE.md](./ARCHITECTURE.md#ai-integration-choices)).
 
 ## Setup
 
@@ -39,21 +47,22 @@ rebuild.
 ```
 src/
 ├── shared/                 framework-agnostic domain core
-│   ├── model/              types + node-type & protocol registries
+│   ├── model/              types, registries, diff, layout, summary
 │   ├── serialization/      yaml (de)serialization + validation
+│   ├── ai/                 AI JSON-schema contracts + normalizers
 │   └── messaging/          host ⇄ webview message contract
 ├── extension/              VS Code extension host
 │   ├── extension.ts        activation entry point
 │   ├── commands/           command registrations
-│   ├── panel/              webview panel + HTML shell
-│   └── workspace/          atlas.yaml file service
-└── webview/                React canvas application
-    ├── index.tsx           app entry
-    ├── vscodeApi.ts        typed host bridge
-    ├── model/              webview state hook + id helpers
-    ├── adapters/           domain ⇄ React Flow translation
-    ├── components/         UI components
-    └── styles/             theme
+│   ├── panel/              webview panel + AI orchestration
+│   ├── ai/                 ClaudeAgent, AuthProvider, prompts
+│   └── workspace/          file service, baseline store, git diff
+├── webview/                React canvas application
+│   ├── model/              graph + AI session hooks
+│   ├── adapters/           domain ⇄ React Flow translation
+│   ├── components/         UI components
+│   └── styles/             theme
+└── mcp/                    standalone MCP server over atlas.yaml
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the rationale behind this layout.
@@ -73,6 +82,20 @@ registry.
 Add an id to `PROTOCOL_IDS` and a definition to `PROTOCOLS` in
 [`src/shared/model/protocols.ts`](../src/shared/model/protocols.ts). The edge
 labels and inspector dropdown update automatically.
+
+## How to: add an MCP tool
+
+Register it in [`src/mcp/server.ts`](../src/mcp/server.ts) with `registerTool`
+and a Zod input schema, mutating through `AtlasStore.mutate` so the result is
+validated before it is written. Rebuild and reconnect Claude Code.
+
+## How to: tune the AI
+
+Prompts live in [`src/extension/ai/prompts.ts`](../src/extension/ai/prompts.ts);
+the structured-output schemas live in
+[`src/shared/ai/`](../src/shared/ai). The Agent SDK call sites (tools allowed,
+permission mode, model) are in
+[`src/extension/ai/ClaudeAgent.ts`](../src/extension/ai/ClaudeAgent.ts).
 
 ## How to: add a host ⇄ webview message
 

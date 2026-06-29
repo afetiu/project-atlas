@@ -11,21 +11,34 @@ nodes:
     type: frontend
     description: React single-page application served to end users.
     position: { x: 80, y: 80 }
+    mapping:
+      path: apps/web
+      language: typescript
+      framework: react
   - id: api-gateway
     name: API Gateway
     type: service
     description: Authenticates requests and routes them to internal services.
     position: { x: 360, y: 80 }
+    mapping:
+      path: services/gateway
+      language: typescript
+      framework: express
   - id: orders-service
     name: Orders Service
     type: service
     description: Owns the order lifecycle and emits domain events.
     position: { x: 640, y: 0 }
+    mapping:
+      path: services/orders
+      language: typescript
   - id: orders-db
     name: Orders DB
     type: database
     description: PostgreSQL store for orders and line items.
     position: { x: 920, y: 0 }
+    mapping:
+      framework: postgres
   - id: events
     name: Event Bus
     type: queue

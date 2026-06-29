@@ -3,6 +3,9 @@
 src/**
 docs/**
 node_modules/**
+# …except the Agent SDK, which is loaded at runtime via dynamic import()
+# rather than bundled (it is ESM and uses import.meta.url).
+!node_modules/@anthropic-ai/**
 .gitignore
 .eslintrc.json
 esbuild.js
