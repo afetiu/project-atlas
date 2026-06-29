@@ -1084,3 +1084,22 @@ select.atlas-input {
   color: var(--accent);
   font-family: var(--font);
 }
+
+/* ---------------- Toolbar history buttons ---------------- */
+
+.atlas-toolbar__history {
+  display: flex;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.atlas-toolbar__history .atlas-button {
+  padding: 4px 9px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.atlas-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

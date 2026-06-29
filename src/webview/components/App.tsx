@@ -5,7 +5,7 @@
  * coordination between those hooks.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ReactFlowProvider } from 'reactflow';
 
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
@@ -80,6 +80,29 @@ export function App(): JSX.Element {
 
   const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
 
+  // Undo/redo keyboard shortcuts — ignored while typing in a field.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        if (event.shiftKey) {
+          api.redo();
+        } else {
+          api.undo();
+        }
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'y') {
+        event.preventDefault();
+        api.redo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [api]);
+
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
     setSelection(next);
@@ -145,6 +168,10 @@ export function App(): JSX.Element {
         <Toolbar
           status={ai.status}
           pendingCount={ai.pendingSummary.length}
+          canUndo={api.canUndo}
+          canRedo={api.canRedo}
+          onUndo={api.undo}
+          onRedo={api.redo}
           onDetect={ai.detect}
           onApplyPending={() => ai.applyTarget(model)}
           onCancel={ai.cancel}

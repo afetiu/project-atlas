@@ -9,6 +9,10 @@ import type { AiStatus } from '../model/useAiSession';
 interface ToolbarProps {
   status: AiStatus;
   pendingCount: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
   onDetect: () => void;
   onApplyPending: () => void;
   onCancel: () => void;
@@ -17,12 +21,38 @@ interface ToolbarProps {
 export function Toolbar({
   status,
   pendingCount,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
   onDetect,
   onApplyPending,
   onCancel,
 }: ToolbarProps): JSX.Element {
   return (
     <div className="atlas-toolbar">
+      {!status.busy && (
+        <div className="atlas-toolbar__history">
+          <button
+            type="button"
+            className="atlas-button atlas-button--small"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title="Undo (Ctrl/Cmd+Z)"
+          >
+            ↶
+          </button>
+          <button
+            type="button"
+            className="atlas-button atlas-button--small"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title="Redo (Ctrl/Cmd+Shift+Z)"
+          >
+            ↷
+          </button>
+        </div>
+      )}
       {status.busy ? (
         <div className="atlas-toolbar__busy">
           <span className="atlas-activity__spinner" aria-hidden="true" />

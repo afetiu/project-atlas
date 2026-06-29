@@ -55,7 +55,13 @@ export interface ArchitectureModelApi {
   updateGroup: (id: string, edits: GroupEdits) => void;
   removeGroups: (ids: string[]) => void;
   setNodeGroup: (nodeId: string, groupId: string | null) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
+
+const HISTORY_LIMIT = 100;
 
 export function useArchitectureModel(): ArchitectureModelApi {
   const [model, setModel] = useState<ArchitectureModel>(createEmptyModel);
@@ -68,6 +74,13 @@ export function useArchitectureModel(): ArchitectureModelApi {
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Undo/redo history of full model snapshots. A version counter forces
+  // re-render so `canUndo`/`canRedo` (read from the refs) stay accurate.
+  const undoStack = useRef<ArchitectureModel[]>([]);
+  const redoStack = useRef<ArchitectureModel[]>([]);
+  const [, setHistoryVersion] = useState(0);
+  const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
+
   const schedulePersist = useCallback((next: ArchitectureModel) => {
     if (persistTimer.current) {
       clearTimeout(persistTimer.current);
@@ -77,16 +90,50 @@ export function useArchitectureModel(): ArchitectureModelApi {
     }, PERSIST_DEBOUNCE_MS);
   }, []);
 
-  /** Apply a pure transform, update state, and schedule a save. */
+  /** Apply a pure transform, record history, update state, and schedule a save. */
   const commit = useCallback(
     (transform: (current: ArchitectureModel) => ArchitectureModel) => {
-      const next = transform(modelRef.current);
+      const prev = modelRef.current;
+      const next = transform(prev);
+      if (next === prev) {
+        return; // no-op transform (e.g. duplicate edge) — don't pollute history.
+      }
+      undoStack.current.push(prev);
+      if (undoStack.current.length > HISTORY_LIMIT) {
+        undoStack.current.shift();
+      }
+      redoStack.current = [];
       modelRef.current = next;
       setModel(next);
       schedulePersist(next);
+      bumpHistory();
     },
-    [schedulePersist],
+    [schedulePersist, bumpHistory],
   );
+
+  const undo = useCallback(() => {
+    const previous = undoStack.current.pop();
+    if (!previous) {
+      return;
+    }
+    redoStack.current.push(modelRef.current);
+    modelRef.current = previous;
+    setModel(previous);
+    schedulePersist(previous);
+    bumpHistory();
+  }, [schedulePersist, bumpHistory]);
+
+  const redo = useCallback(() => {
+    const next = redoStack.current.pop();
+    if (!next) {
+      return;
+    }
+    undoStack.current.push(modelRef.current);
+    modelRef.current = next;
+    setModel(next);
+    schedulePersist(next);
+    bumpHistory();
+  }, [schedulePersist, bumpHistory]);
 
   /* ---- Incoming authoritative models from the host ---- */
   useEffect(() => {
@@ -94,9 +141,13 @@ export function useArchitectureModel(): ArchitectureModelApi {
       switch (message.type) {
         case 'model:loaded':
           // Replace local state without persisting — this came *from* disk.
+          // History doesn't span external reloads, so reset it.
           modelRef.current = message.model;
           setModel(message.model);
           setError(null);
+          undoStack.current = [];
+          redoStack.current = [];
+          bumpHistory();
           break;
         case 'model:error':
           setError(message.message);
@@ -301,5 +352,9 @@ export function useArchitectureModel(): ArchitectureModelApi {
     updateGroup,
     removeGroups,
     setNodeGroup,
+    undo,
+    redo,
+    canUndo: undoStack.current.length > 0,
+    canRedo: redoStack.current.length > 0,
   };
 }
