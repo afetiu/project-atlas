@@ -1,0 +1,68 @@
+# Example Atlas architecture model.
+#
+# Copy this file to `atlas.yaml` at your workspace root (or just run
+# "Atlas: Open Architecture" and start drawing — Atlas will create the file
+# for you). Everything below round-trips losslessly with the visual canvas.
+
+version: 1
+nodes:
+  - id: web-app
+    name: Web App
+    type: frontend
+    description: React single-page application served to end users.
+    position: { x: 80, y: 80 }
+  - id: api-gateway
+    name: API Gateway
+    type: service
+    description: Authenticates requests and routes them to internal services.
+    position: { x: 360, y: 80 }
+  - id: orders-service
+    name: Orders Service
+    type: service
+    description: Owns the order lifecycle and emits domain events.
+    position: { x: 640, y: 0 }
+  - id: orders-db
+    name: Orders DB
+    type: database
+    description: PostgreSQL store for orders and line items.
+    position: { x: 920, y: 0 }
+  - id: events
+    name: Event Bus
+    type: queue
+    description: Streams domain events to downstream consumers.
+    position: { x: 640, y: 180 }
+  - id: session-cache
+    name: Session Cache
+    type: cache
+    description: Short-lived session and rate-limit state.
+    position: { x: 360, y: 240 }
+  - id: payments
+    name: Payments Provider
+    type: externalApi
+    description: Third-party payment processing API.
+    position: { x: 920, y: 200 }
+edges:
+  - id: edge-web-app-api-gateway
+    source: web-app
+    target: api-gateway
+    protocol: http
+  - id: edge-api-gateway-session-cache
+    source: api-gateway
+    target: session-cache
+    protocol: redis
+  - id: edge-api-gateway-orders-service
+    source: api-gateway
+    target: orders-service
+    protocol: grpc
+  - id: edge-orders-service-orders-db
+    source: orders-service
+    target: orders-db
+    protocol: http
+  - id: edge-orders-service-events
+    source: orders-service
+    target: events
+    protocol: kafka
+  - id: edge-orders-service-payments
+    source: orders-service
+    target: payments
+    protocol: http
