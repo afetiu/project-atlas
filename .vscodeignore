@@ -2,10 +2,15 @@
 .vscode/**
 src/**
 docs/**
+test/**
+dist-test/**
+scripts/**
 node_modules/**
-# …except the Agent SDK, which is loaded at runtime via dynamic import()
-# rather than bundled (it is ESM and uses import.meta.url).
-!node_modules/@anthropic-ai/**
+# …except the Agent SDK's JS package, which is loaded at runtime via dynamic
+# import() rather than bundled (it is ESM and uses import.meta.url). Its
+# platform-specific `claude` binary is NOT shipped — Atlas uses the `claude`
+# CLI already on the user's machine.
+!node_modules/@anthropic-ai/claude-agent-sdk/**
 .gitignore
 .eslintrc.json
 esbuild.js
