@@ -23,11 +23,14 @@ import ReactFlow, {
 import { isNodeTypeId } from '../../shared/model/nodeTypes';
 import type { RuleSeverity } from '../../shared/rules/rules';
 import {
+  ARCHITECTURE_COLLAPSED_TYPE,
   ARCHITECTURE_EDGE_TYPE,
   ARCHITECTURE_GROUP_TYPE,
   ARCHITECTURE_NODE_TYPE,
+  COLLAPSED_ID_PREFIX,
   GROUP_ID_PREFIX,
   groupBounds,
+  toCollapsedGroupNodes,
   toFlowEdges,
   toFlowGroups,
   toFlowNodes,
@@ -35,6 +38,8 @@ import {
 import type { Node as FlowNodeType } from 'reactflow';
 import type { ArchitectureModelApi } from '../model/useArchitectureModel';
 import { ArchitectureNodeView } from './ArchitectureNodeView';
+import { CanvasContext } from './canvasContext';
+import { CollapsedGroupNode } from './CollapsedGroupNode';
 import { FloatingEdge } from './FloatingEdge';
 import { GroupRegion } from './GroupRegion';
 import { PALETTE_DND_MIME } from './Palette';
@@ -51,14 +56,28 @@ interface ArchitectureCanvasProps {
   onSelectionChange: (selection: Selection) => void;
   issueByNode: Map<string, RuleSeverity>;
   onOpenFile: (path: string) => void;
+  collapsedGroups: ReadonlySet<string>;
+  onToggleCollapse: (groupId: string) => void;
 }
 
 const nodeTypes = {
   [ARCHITECTURE_NODE_TYPE]: ArchitectureNodeView,
   [ARCHITECTURE_GROUP_TYPE]: GroupRegion,
+  [ARCHITECTURE_COLLAPSED_TYPE]: CollapsedGroupNode,
 };
 
 const edgeTypes = { [ARCHITECTURE_EDGE_TYPE]: FloatingEdge };
+
+/** Extract the group id from a region or collapsed-group flow-node id. */
+function groupIdOf(flowNodeId: string): string | null {
+  if (flowNodeId.startsWith(GROUP_ID_PREFIX)) {
+    return flowNodeId.slice(GROUP_ID_PREFIX.length);
+  }
+  if (flowNodeId.startsWith(COLLAPSED_ID_PREFIX)) {
+    return flowNodeId.slice(COLLAPSED_ID_PREFIX.length);
+  }
+  return null;
+}
 
 export function ArchitectureCanvas({
   api,
@@ -66,6 +85,8 @@ export function ArchitectureCanvas({
   onSelectionChange,
   issueByNode,
   onOpenFile,
+  collapsedGroups,
+  onToggleCollapse,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
   const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode, setNodeGroup } =
@@ -74,22 +95,27 @@ export function ArchitectureCanvas({
   // Derive React Flow state from the model, applying the current selection.
   // Group regions are listed first so they render behind the components.
   const nodes = useMemo(() => {
-    const groupNodes = toFlowGroups(model).map((group) => ({
+    const groupNodes = toFlowGroups(model, collapsedGroups).map((group) => ({
       ...group,
       selected: group.id === `${GROUP_ID_PREFIX}${selection.groupId}`,
     }));
-    const flowNodes = toFlowNodes(model).map((node) => ({
+    const collapsedNodes = toCollapsedGroupNodes(model, collapsedGroups).map((node) => ({
+      ...node,
+      draggable: false,
+      selected: node.id === `${COLLAPSED_ID_PREFIX}${selection.groupId}`,
+    }));
+    const flowNodes = toFlowNodes(model, collapsedGroups).map((node) => ({
       ...node,
       selected: node.id === selection.nodeId,
       data: { ...node.data, issueSeverity: issueByNode.get(node.id) },
     }));
-    return [...groupNodes, ...flowNodes];
-  }, [model, selection.nodeId, selection.groupId, issueByNode]);
+    return [...groupNodes, ...collapsedNodes, ...flowNodes];
+  }, [model, selection.nodeId, selection.groupId, issueByNode, collapsedGroups]);
 
   const edges = useMemo(() => {
-    const flowEdges = toFlowEdges(model);
+    const flowEdges = toFlowEdges(model, collapsedGroups);
     return flowEdges.map((edge) => ({ ...edge, selected: edge.id === selection.edgeId }));
-  }, [model, selection.edgeId]);
+  }, [model, selection.edgeId, collapsedGroups]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -100,8 +126,9 @@ export function ArchitectureCanvas({
         if (change.type === 'position' && change.position) {
           moves.push({ id: change.id, position: change.position });
         } else if (change.type === 'remove') {
-          if (change.id.startsWith(GROUP_ID_PREFIX)) {
-            removedGroups.push(change.id.slice(GROUP_ID_PREFIX.length));
+          const groupId = groupIdOf(change.id);
+          if (groupId) {
+            removedGroups.push(groupId);
           } else {
             removedNodes.push(change.id);
           }
@@ -135,16 +162,12 @@ export function ArchitectureCanvas({
 
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams) => {
-      const componentNode = selNodes.find((n) => !n.id.startsWith(GROUP_ID_PREFIX));
-      const groupNode = selNodes.find((n) => n.id.startsWith(GROUP_ID_PREFIX));
+      const componentNode = selNodes.find((n) => groupIdOf(n.id) === null);
+      const groupNode = selNodes.find((n) => groupIdOf(n.id) !== null);
       if (componentNode) {
         onSelectionChange({ nodeId: componentNode.id, edgeId: null, groupId: null });
       } else if (groupNode) {
-        onSelectionChange({
-          nodeId: null,
-          edgeId: null,
-          groupId: groupNode.id.slice(GROUP_ID_PREFIX.length),
-        });
+        onSelectionChange({ nodeId: null, edgeId: null, groupId: groupIdOf(groupNode.id) });
       } else {
         onSelectionChange({ nodeId: null, edgeId: selEdges[0]?.id ?? null, groupId: null });
       }
@@ -204,7 +227,10 @@ export function ArchitectureCanvas({
     [screenToFlowPosition, addNode, onSelectionChange],
   );
 
+  const canvasCallbacks = useMemo(() => ({ onToggleCollapse }), [onToggleCollapse]);
+
   return (
+    <CanvasContext.Provider value={canvasCallbacks}>
     <div className="atlas-canvas" onDrop={handleDrop} onDragOver={handleDragOver}>
       <ReactFlow
         nodes={nodes}
@@ -233,5 +259,6 @@ export function ArchitectureCanvas({
         <Controls className="atlas-controls" showInteractive={false} />
       </ReactFlow>
     </div>
+    </CanvasContext.Provider>
   );
 }

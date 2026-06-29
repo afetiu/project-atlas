@@ -9,12 +9,14 @@ import { memo } from 'react';
 import type { NodeProps } from 'reactflow';
 
 import type { ArchitectureGroupData } from '../adapters/reactFlowAdapter';
+import { useCanvasCallbacks } from './canvasContext';
 
 function GroupRegionComponent({
   data,
   selected,
 }: NodeProps<ArchitectureGroupData>): JSX.Element {
   const { group, memberCount } = data;
+  const { onToggleCollapse } = useCanvasCallbacks();
   return (
     <div
       className={`atlas-group${selected ? ' atlas-group--selected' : ''}`}
@@ -24,6 +26,15 @@ function GroupRegionComponent({
         <span className="atlas-group__dot" aria-hidden="true" />
         <span className="atlas-group__name">{group.name}</span>
         <span className="atlas-group__count">{memberCount}</span>
+        <button
+          type="button"
+          className="atlas-group__collapse"
+          title="Collapse context"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => onToggleCollapse(group.id)}
+        >
+          ⤡
+        </button>
       </div>
     </div>
   );

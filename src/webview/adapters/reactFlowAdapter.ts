@@ -20,10 +20,12 @@ import type { RuleSeverity } from '../../shared/rules/rules';
 /** Custom node/edge type keys registered with React Flow. */
 export const ARCHITECTURE_NODE_TYPE = 'architecture';
 export const ARCHITECTURE_GROUP_TYPE = 'group';
+export const ARCHITECTURE_COLLAPSED_TYPE = 'collapsedGroup';
 export const ARCHITECTURE_EDGE_TYPE = 'floating';
 
-/** React Flow node ids for group regions are prefixed to avoid colliding with node ids. */
+/** React Flow node ids are prefixed so region/collapsed nodes never collide with node ids. */
 export const GROUP_ID_PREFIX = 'group:';
+export const COLLAPSED_ID_PREFIX = 'collapsed:';
 
 // Approximate component card size, used to compute region bounds.
 const NODE_W = 210;
@@ -49,14 +51,43 @@ export interface ArchitectureEdgeData {
 export type FlowNode = Node<ArchitectureNodeData>;
 export type FlowEdge = Edge<ArchitectureEdgeData>;
 
-export function toFlowNodes(model: ArchitectureModel): FlowNode[] {
-  return model.nodes.map((node) => ({
-    id: node.id,
-    type: ARCHITECTURE_NODE_TYPE,
-    position: node.position,
-    data: { node },
-  }));
+export function toFlowNodes(
+  model: ArchitectureModel,
+  collapsed: ReadonlySet<string> = EMPTY_SET,
+): FlowNode[] {
+  return model.nodes
+    .filter((node) => !(node.groupId && collapsed.has(node.groupId)))
+    .map((node) => ({
+      id: node.id,
+      type: ARCHITECTURE_NODE_TYPE,
+      position: node.position,
+      data: { node },
+    }));
 }
+
+/** One compact node per collapsed bounded context, standing in for its members. */
+export function toCollapsedGroupNodes(
+  model: ArchitectureModel,
+  collapsed: ReadonlySet<string>,
+): FlowGroupNode[] {
+  const nodes: FlowGroupNode[] = [];
+  model.groups.forEach((group, index) => {
+    if (!collapsed.has(group.id)) {
+      return;
+    }
+    const members = model.nodes.filter((node) => node.groupId === group.id);
+    const bounds = members.length > 0 ? boundsOf(members) : defaultBounds(index);
+    nodes.push({
+      id: `${COLLAPSED_ID_PREFIX}${group.id}`,
+      type: ARCHITECTURE_COLLAPSED_TYPE,
+      position: { x: bounds.x, y: bounds.y },
+      data: { group, memberCount: members.length },
+    });
+  });
+  return nodes;
+}
+
+const EMPTY_SET: ReadonlySet<string> = new Set();
 
 export type FlowGroupNode = Node<ArchitectureGroupData>;
 
@@ -65,8 +96,13 @@ export type FlowGroupNode = Node<ArchitectureGroupData>;
  * of its member components. Groups with no members get a default-sized box so
  * they remain visible and selectable.
  */
-export function toFlowGroups(model: ArchitectureModel): FlowGroupNode[] {
-  return model.groups.map((group, index) => {
+export function toFlowGroups(
+  model: ArchitectureModel,
+  collapsed: ReadonlySet<string> = EMPTY_SET,
+): FlowGroupNode[] {
+  return model.groups
+    .filter((group) => !collapsed.has(group.id))
+    .map((group, index) => {
     const members = model.nodes.filter((node) => node.groupId === group.id);
     const bounds = members.length > 0 ? boundsOf(members) : defaultBounds(index);
     return {
@@ -119,14 +155,38 @@ function defaultBounds(index: number) {
   return { x: 40 + index * 28, y: 40 + index * 28, width: 300, height: 170 };
 }
 
-export function toFlowEdges(model: ArchitectureModel): FlowEdge[] {
-  return model.edges.map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    target: edge.target,
-    type: ARCHITECTURE_EDGE_TYPE,
-    label: getProtocolLabel(edge.protocol),
-    markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#5b5b69' },
-    data: { protocol: edge.protocol },
-  }));
+export function toFlowEdges(
+  model: ArchitectureModel,
+  collapsed: ReadonlySet<string> = EMPTY_SET,
+): FlowEdge[] {
+  const groupOf = new Map(model.nodes.map((n) => [n.id, n.groupId]));
+  const endpoint = (nodeId: string): string => {
+    const groupId = groupOf.get(nodeId);
+    return groupId && collapsed.has(groupId) ? `${COLLAPSED_ID_PREFIX}${groupId}` : nodeId;
+  };
+
+  const seen = new Set<string>();
+  const edges: FlowEdge[] = [];
+  for (const edge of model.edges) {
+    const source = endpoint(edge.source);
+    const target = endpoint(edge.target);
+    if (source === target) {
+      continue; // wholly inside one collapsed context
+    }
+    const key = `${source}->${target}`;
+    if (seen.has(key)) {
+      continue; // multiple member edges collapse to one
+    }
+    seen.add(key);
+    edges.push({
+      id: edge.id,
+      source,
+      target,
+      type: ARCHITECTURE_EDGE_TYPE,
+      label: getProtocolLabel(edge.protocol),
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#5b5b69' },
+      data: { protocol: edge.protocol },
+    });
+  }
+  return edges;
 }

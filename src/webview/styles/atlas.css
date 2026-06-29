@@ -1103,3 +1103,78 @@ select.atlas-input {
   opacity: 0.4;
   cursor: default;
 }
+
+/* ---------------- Collapsed bounded context ---------------- */
+
+.atlas-collapsed {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 190px;
+  max-width: 260px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--group-color, var(--accent)) 50%, var(--border-strong));
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--group-color, var(--accent)) 14%, var(--surface)), var(--bg-elevated));
+  box-shadow: var(--shadow-node);
+}
+
+.atlas-collapsed--selected {
+  box-shadow: 0 0 0 1px var(--group-color, var(--accent)), var(--shadow-soft);
+}
+
+.atlas-collapsed__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--group-color, var(--accent));
+  flex: 0 0 auto;
+}
+
+.atlas-collapsed__body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.atlas-collapsed__name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atlas-collapsed__count {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 1px;
+}
+
+.atlas-group__collapse,
+.atlas-collapsed__expand {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 5px;
+  transition: color var(--transition), background var(--transition);
+}
+
+.atlas-group__collapse {
+  margin-left: 2px;
+}
+
+.atlas-collapsed__expand {
+  flex: 0 0 auto;
+}
+
+.atlas-group__collapse:hover,
+.atlas-collapsed__expand:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}

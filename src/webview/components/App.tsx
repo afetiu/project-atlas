@@ -33,7 +33,20 @@ export function App(): JSX.Element {
 
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const [rightTab, setRightTab] = useState<RightTab>('inspector');
+  const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(new Set());
   const spawnCount = useRef(0);
+
+  const toggleCollapse = useCallback((groupId: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
 
   const selectedNode = useMemo(
     () => model.nodes.find((node) => node.id === selection.nodeId) ?? null,
@@ -203,6 +216,8 @@ export function App(): JSX.Element {
               onSelectionChange={selectOnCanvas}
               issueByNode={issueByNode}
               onOpenFile={openFile}
+              collapsedGroups={collapsedGroups}
+              onToggleCollapse={toggleCollapse}
             />
           </ReactFlowProvider>
           {model.nodes.length === 0 && !ai.status.busy && (
