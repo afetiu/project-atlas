@@ -16,6 +16,7 @@ import {
   type ArchitectureEdge,
   type ArchitectureModel,
   type ArchitectureNode,
+  type NodeCodeMapping,
   type Position,
 } from '../model/types';
 
@@ -38,6 +39,8 @@ export function serializeModel(model: ArchitectureModel): string {
       type: node.type,
       description: node.description,
       position: { x: round(node.position.x), y: round(node.position.y) },
+      // Only emit `mapping` when it carries information, keeping the file lean.
+      ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
     })),
     edges: model.edges.map((edge) => ({
       id: edge.id,
@@ -84,13 +87,43 @@ export function deserializeModel(text: string): ArchitectureModel {
 function normalizeNode(raw: unknown, index: number): ArchitectureNode {
   const record = (raw ?? {}) as Record<string, unknown>;
   const id = asString(record.id) || `node-${index}`;
-  return {
+  const node: ArchitectureNode = {
     id,
     name: asString(record.name) || id,
     type: isNodeTypeId(record.type) ? record.type : 'service',
     description: asString(record.description),
     position: normalizePosition(record.position),
   };
+  const mapping = normalizeMapping(record.mapping);
+  if (mapping) {
+    node.mapping = mapping;
+  }
+  return node;
+}
+
+function normalizeMapping(raw: unknown): NodeCodeMapping | undefined {
+  if (raw === null || typeof raw !== 'object') {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  const mapping = compactMapping({
+    path: asString(record.path) || undefined,
+    language: asString(record.language) || undefined,
+    framework: asString(record.framework) || undefined,
+  });
+  return hasMapping(mapping) ? mapping : undefined;
+}
+
+function compactMapping(mapping: NodeCodeMapping): NodeCodeMapping {
+  const result: NodeCodeMapping = {};
+  if (mapping.path) result.path = mapping.path;
+  if (mapping.language) result.language = mapping.language;
+  if (mapping.framework) result.framework = mapping.framework;
+  return result;
+}
+
+function hasMapping(mapping: NodeCodeMapping | undefined): boolean {
+  return !!mapping && (!!mapping.path || !!mapping.language || !!mapping.framework);
 }
 
 function normalizeEdge(raw: unknown, index: number): ArchitectureEdge {

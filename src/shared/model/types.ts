@@ -16,6 +16,23 @@ export interface Position {
   y: number;
 }
 
+/**
+ * Maps an architecture node to its realization in code.
+ *
+ * This is the bridge that lets Atlas treat the architecture as the source of
+ * truth: detection populates it, and code generation reads it to know *where*
+ * a component lives. All fields are optional so a freshly drawn node (not yet
+ * backed by code) is still valid.
+ */
+export interface NodeCodeMapping {
+  /** Workspace-relative path to the directory/module/file backing this node. */
+  path?: string;
+  /** Primary language, e.g. "typescript", "go". */
+  language?: string;
+  /** Framework or runtime, e.g. "express", "react", "postgres". */
+  framework?: string;
+}
+
 /** A single architecture component (service, database, queue, …). */
 export interface ArchitectureNode {
   id: string;
@@ -23,6 +40,8 @@ export interface ArchitectureNode {
   type: NodeTypeId;
   description: string;
   position: Position;
+  /** Optional link to the code that realizes this component. */
+  mapping?: NodeCodeMapping;
 }
 
 /** A directed connection between two nodes, carrying a protocol. */
