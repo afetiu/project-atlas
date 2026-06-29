@@ -1,0 +1,32 @@
+/**
+ * A bounded-context region: a translucent, labelled rectangle rendered behind
+ * its member components. The body is click-through (so the components inside
+ * stay interactive); only the header label is selectable, which opens the group
+ * in the inspector.
+ */
+
+import { memo } from 'react';
+import type { NodeProps } from 'reactflow';
+
+import type { ArchitectureGroupData } from '../adapters/reactFlowAdapter';
+
+function GroupRegionComponent({
+  data,
+  selected,
+}: NodeProps<ArchitectureGroupData>): JSX.Element {
+  const { group, memberCount } = data;
+  return (
+    <div
+      className={`atlas-group${selected ? ' atlas-group--selected' : ''}`}
+      style={{ ['--group-color' as string]: group.color ?? '#7c93ff' }}
+    >
+      <div className="atlas-group__header" title={group.description || group.name}>
+        <span className="atlas-group__dot" aria-hidden="true" />
+        <span className="atlas-group__name">{group.name}</span>
+        <span className="atlas-group__count">{memberCount}</span>
+      </div>
+    </div>
+  );
+}
+
+export const GroupRegion = memo(GroupRegionComponent);

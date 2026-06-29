@@ -22,17 +22,22 @@ import ReactFlow, {
 
 import { isNodeTypeId } from '../../shared/model/nodeTypes';
 import {
+  ARCHITECTURE_GROUP_TYPE,
   ARCHITECTURE_NODE_TYPE,
+  GROUP_ID_PREFIX,
   toFlowEdges,
+  toFlowGroups,
   toFlowNodes,
 } from '../adapters/reactFlowAdapter';
 import type { ArchitectureModelApi } from '../model/useArchitectureModel';
 import { ArchitectureNodeView } from './ArchitectureNodeView';
+import { GroupRegion } from './GroupRegion';
 import { PALETTE_DND_MIME } from './Palette';
 
 export interface Selection {
   nodeId: string | null;
   edgeId: string | null;
+  groupId: string | null;
 }
 
 interface ArchitectureCanvasProps {
@@ -41,7 +46,10 @@ interface ArchitectureCanvasProps {
   onSelectionChange: (selection: Selection) => void;
 }
 
-const nodeTypes = { [ARCHITECTURE_NODE_TYPE]: ArchitectureNodeView };
+const nodeTypes = {
+  [ARCHITECTURE_NODE_TYPE]: ArchitectureNodeView,
+  [ARCHITECTURE_GROUP_TYPE]: GroupRegion,
+};
 
 export function ArchitectureCanvas({
   api,
@@ -49,13 +57,21 @@ export function ArchitectureCanvas({
   onSelectionChange,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
-  const { model, moveNodes, removeNodes, removeEdges, addEdge, addNode } = api;
+  const { model, moveNodes, removeNodes, removeEdges, removeGroups, addEdge, addNode } = api;
 
   // Derive React Flow state from the model, applying the current selection.
+  // Group regions are listed first so they render behind the components.
   const nodes = useMemo(() => {
-    const flowNodes = toFlowNodes(model);
-    return flowNodes.map((node) => ({ ...node, selected: node.id === selection.nodeId }));
-  }, [model, selection.nodeId]);
+    const groupNodes = toFlowGroups(model).map((group) => ({
+      ...group,
+      selected: group.id === `${GROUP_ID_PREFIX}${selection.groupId}`,
+    }));
+    const flowNodes = toFlowNodes(model).map((node) => ({
+      ...node,
+      selected: node.id === selection.nodeId,
+    }));
+    return [...groupNodes, ...flowNodes];
+  }, [model, selection.nodeId, selection.groupId]);
 
   const edges = useMemo(() => {
     const flowEdges = toFlowEdges(model);
@@ -65,18 +81,24 @@ export function ArchitectureCanvas({
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const moves: Array<{ id: string; position: { x: number; y: number } }> = [];
-      const removed: string[] = [];
+      const removedNodes: string[] = [];
+      const removedGroups: string[] = [];
       for (const change of changes) {
         if (change.type === 'position' && change.position) {
           moves.push({ id: change.id, position: change.position });
         } else if (change.type === 'remove') {
-          removed.push(change.id);
+          if (change.id.startsWith(GROUP_ID_PREFIX)) {
+            removedGroups.push(change.id.slice(GROUP_ID_PREFIX.length));
+          } else {
+            removedNodes.push(change.id);
+          }
         }
       }
       moveNodes(moves);
-      removeNodes(removed);
+      removeNodes(removedNodes);
+      removeGroups(removedGroups);
     },
-    [moveNodes, removeNodes],
+    [moveNodes, removeNodes, removeGroups],
   );
 
   const handleEdgesChange = useCallback(
@@ -100,10 +122,19 @@ export function ArchitectureCanvas({
 
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams) => {
-      onSelectionChange({
-        nodeId: selNodes[0]?.id ?? null,
-        edgeId: selNodes.length === 0 ? selEdges[0]?.id ?? null : null,
-      });
+      const componentNode = selNodes.find((n) => !n.id.startsWith(GROUP_ID_PREFIX));
+      const groupNode = selNodes.find((n) => n.id.startsWith(GROUP_ID_PREFIX));
+      if (componentNode) {
+        onSelectionChange({ nodeId: componentNode.id, edgeId: null, groupId: null });
+      } else if (groupNode) {
+        onSelectionChange({
+          nodeId: null,
+          edgeId: null,
+          groupId: groupNode.id.slice(GROUP_ID_PREFIX.length),
+        });
+      } else {
+        onSelectionChange({ nodeId: null, edgeId: selEdges[0]?.id ?? null, groupId: null });
+      }
     },
     [onSelectionChange],
   );
@@ -122,7 +153,7 @@ export function ArchitectureCanvas({
       }
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const id = addNode(type, position);
-      onSelectionChange({ nodeId: id, edgeId: null });
+      onSelectionChange({ nodeId: id, edgeId: null, groupId: null });
     },
     [screenToFlowPosition, addNode, onSelectionChange],
   );

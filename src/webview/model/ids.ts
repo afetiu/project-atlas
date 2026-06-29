@@ -31,6 +31,19 @@ export function makeUniqueNodeId(model: ArchitectureModel, baseName: string): st
   return `${base}-${counter}`;
 }
 
+export function makeUniqueGroupId(model: ArchitectureModel, baseName: string): string {
+  const base = slugify(baseName);
+  const existing = new Set(model.groups.map((group) => group.id));
+  if (!existing.has(base)) {
+    return base;
+  }
+  let counter = 2;
+  while (existing.has(`${base}-${counter}`)) {
+    counter += 1;
+  }
+  return `${base}-${counter}`;
+}
+
 export function makeEdgeId(model: ArchitectureModel, source: string, target: string): string {
   const existing = new Set(model.edges.map((edge) => edge.id));
   const base = `edge-${source}-${target}`;

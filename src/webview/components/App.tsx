@@ -19,7 +19,7 @@ import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
 import { Toolbar } from './Toolbar';
 
-const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null };
+const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
 type RightTab = 'inspector' | 'assistant';
 
@@ -40,11 +40,15 @@ export function App(): JSX.Element {
     () => model.edges.find((edge) => edge.id === selection.edgeId) ?? null,
     [model.edges, selection.edgeId],
   );
+  const selectedGroup = useMemo(
+    () => model.groups.find((group) => group.id === selection.groupId) ?? null,
+    [model.groups, selection.groupId],
+  );
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
     setSelection(next);
-    if (next.nodeId || next.edgeId) {
+    if (next.nodeId || next.edgeId || next.groupId) {
       setRightTab('inspector');
     }
   }, []);
@@ -54,7 +58,7 @@ export function App(): JSX.Element {
       const offset = (spawnCount.current % 6) * 36;
       spawnCount.current += 1;
       const id = api.addNode(type, { x: 120 + offset, y: 120 + offset });
-      selectOnCanvas({ nodeId: id, edgeId: null });
+      selectOnCanvas({ nodeId: id, edgeId: null, groupId: null });
     },
     [api, selectOnCanvas],
   );
@@ -71,6 +75,26 @@ export function App(): JSX.Element {
     (id: string) => {
       api.removeEdges([id]);
       setSelection(EMPTY_SELECTION);
+    },
+    [api],
+  );
+
+  const handleDeleteGroup = useCallback(
+    (id: string) => {
+      api.removeGroups([id]);
+      setSelection(EMPTY_SELECTION);
+    },
+    [api],
+  );
+
+  // Create a context from the node inspector, assign the node, and open the new
+  // context for renaming.
+  const handleCreateContext = useCallback(
+    (nodeId: string) => {
+      const id = api.addGroup('New context');
+      api.setNodeGroup(nodeId, id);
+      setSelection({ nodeId: null, edgeId: null, groupId: id });
+      setRightTab('inspector');
     },
     [api],
   );
@@ -92,6 +116,7 @@ export function App(): JSX.Element {
         />
         <div className="atlas-topbar__meta">
           {model.nodes.length} nodes · {model.edges.length} connections
+          {model.groups.length > 0 && ` · ${model.groups.length} contexts`}
         </div>
       </header>
 
@@ -144,10 +169,16 @@ export function App(): JSX.Element {
             <InspectorPanel
               selectedNode={selectedNode}
               selectedEdge={selectedEdge}
+              selectedGroup={selectedGroup}
+              groups={model.groups}
               onUpdateNode={api.updateNode}
               onUpdateEdgeProtocol={api.updateEdgeProtocol}
               onDeleteNode={handleDeleteNode}
               onDeleteEdge={handleDeleteEdge}
+              onSetNodeGroup={api.setNodeGroup}
+              onCreateContext={handleCreateContext}
+              onUpdateGroup={api.updateGroup}
+              onDeleteGroup={handleDeleteGroup}
             />
           ) : (
             <AssistantPanel

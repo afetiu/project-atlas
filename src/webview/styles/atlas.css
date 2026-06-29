@@ -856,3 +856,87 @@ select.atlas-input {
 .atlas-banner__dismiss {
   flex: 0 0 auto;
 }
+
+/* ---------------- Bounded-context regions ---------------- */
+
+/* The region box must not capture pointer events, so components inside stay
+   interactive and the canvas pans normally. Only the header label is active. */
+.react-flow__node-group {
+  pointer-events: none;
+}
+
+.atlas-group {
+  width: 100%;
+  height: 100%;
+  border: 1px solid color-mix(in srgb, var(--group-color, var(--accent)) 45%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--group-color, var(--accent)) 7%, transparent);
+  position: relative;
+}
+
+.atlas-group--selected {
+  border-color: var(--group-color, var(--accent));
+  box-shadow: 0 0 0 1px var(--group-color, var(--accent));
+}
+
+.atlas-group__header {
+  pointer-events: all;
+  position: absolute;
+  top: -13px;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid color-mix(in srgb, var(--group-color, var(--accent)) 45%, var(--border));
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.atlas-group__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--group-color, var(--accent));
+}
+
+.atlas-group__count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------- Inspector: context picker & swatches ---------------- */
+
+.atlas-field__action {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+
+.atlas-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.atlas-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: transform var(--transition), border-color var(--transition);
+}
+
+.atlas-swatch:hover {
+  transform: scale(1.08);
+}
+
+.atlas-swatch--active {
+  border-color: var(--text);
+}

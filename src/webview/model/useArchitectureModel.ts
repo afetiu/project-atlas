@@ -13,17 +13,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { groupColorForIndex } from '../../shared/model/groups';
 import { NODE_TYPES, type NodeTypeId } from '../../shared/model/nodeTypes';
 import { DEFAULT_PROTOCOL, type ProtocolId } from '../../shared/model/protocols';
 import {
   createEmptyModel,
   type ArchitectureEdge,
+  type ArchitectureGroup,
   type ArchitectureModel,
   type ArchitectureNode,
   type Position,
 } from '../../shared/model/types';
 import { onHostMessage, postToHost } from '../vscodeApi';
-import { makeEdgeId, makeUniqueNodeId } from './ids';
+import { makeEdgeId, makeUniqueGroupId, makeUniqueNodeId } from './ids';
 
 const PERSIST_DEBOUNCE_MS = 250;
 
@@ -31,6 +33,12 @@ export interface NodeEdits {
   name?: string;
   type?: NodeTypeId;
   description?: string;
+}
+
+export interface GroupEdits {
+  name?: string;
+  description?: string;
+  color?: string;
 }
 
 export interface ArchitectureModelApi {
@@ -43,6 +51,10 @@ export interface ArchitectureModelApi {
   addEdge: (source: string, target: string) => void;
   updateEdgeProtocol: (id: string, protocol: ProtocolId) => void;
   removeEdges: (ids: string[]) => void;
+  addGroup: (name: string) => string;
+  updateGroup: (id: string, edits: GroupEdits) => void;
+  removeGroups: (ids: string[]) => void;
+  setNodeGroup: (nodeId: string, groupId: string | null) => void;
 }
 
 export function useArchitectureModel(): ArchitectureModelApi {
@@ -217,6 +229,64 @@ export function useArchitectureModel(): ArchitectureModelApi {
     [commit],
   );
 
+  const addGroup = useCallback(
+    (name: string): string => {
+      const id = makeUniqueGroupId(modelRef.current, name);
+      const group: ArchitectureGroup = {
+        id,
+        name,
+        color: groupColorForIndex(modelRef.current.groups.length),
+      };
+      commit((current) => ({ ...current, groups: [...current.groups, group] }));
+      return id;
+    },
+    [commit],
+  );
+
+  const updateGroup = useCallback(
+    (id: string, edits: GroupEdits) => {
+      commit((current) => ({
+        ...current,
+        groups: current.groups.map((group) =>
+          group.id === id ? { ...group, ...edits } : group,
+        ),
+      }));
+    },
+    [commit],
+  );
+
+  const removeGroups = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) {
+        return;
+      }
+      const removed = new Set(ids);
+      commit((current) => ({
+        ...current,
+        groups: current.groups.filter((group) => !removed.has(group.id)),
+        // Detach members of removed groups.
+        nodes: current.nodes.map((node) =>
+          node.groupId && removed.has(node.groupId)
+            ? { ...node, groupId: undefined }
+            : node,
+        ),
+      }));
+    },
+    [commit],
+  );
+
+  const setNodeGroup = useCallback(
+    (nodeId: string, groupId: string | null) => {
+      commit((current) => ({
+        ...current,
+        nodes: current.nodes.map((node) =>
+          node.id === nodeId ? { ...node, groupId: groupId ?? undefined } : node,
+        ),
+      }));
+    },
+    [commit],
+  );
+
   return {
     model,
     error,
@@ -227,5 +297,9 @@ export function useArchitectureModel(): ArchitectureModelApi {
     addEdge,
     updateEdgeProtocol,
     removeEdges,
+    addGroup,
+    updateGroup,
+    removeGroups,
+    setNodeGroup,
   };
 }

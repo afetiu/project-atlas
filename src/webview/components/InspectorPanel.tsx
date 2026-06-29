@@ -1,34 +1,45 @@
 /**
- * The inspector: a side panel that edits the currently selected node or edge.
- *
- * Edits are pushed straight back through the model mutators, so every keystroke
- * flows into `atlas.yaml` (debounced). The panel is intentionally "dumb": it
- * holds no model state of its own and derives everything from props.
+ * The inspector: a side panel that edits the selected node, edge, or bounded
+ * context. Edits flow straight back through the model mutators (debounced to
+ * `atlas.yaml`). The panel holds no model state of its own.
  */
 
 import React from 'react';
 
+import { GROUP_COLORS } from '../../shared/model/groups';
 import { NODE_TYPE_LIST, type NodeTypeId } from '../../shared/model/nodeTypes';
 import { PROTOCOL_LIST, type ProtocolId } from '../../shared/model/protocols';
-import type { ArchitectureEdge, ArchitectureNode } from '../../shared/model/types';
-import type { NodeEdits } from '../model/useArchitectureModel';
+import type {
+  ArchitectureEdge,
+  ArchitectureGroup,
+  ArchitectureNode,
+} from '../../shared/model/types';
+import type { GroupEdits, NodeEdits } from '../model/useArchitectureModel';
 
 interface InspectorPanelProps {
   selectedNode: ArchitectureNode | null;
   selectedEdge: ArchitectureEdge | null;
+  selectedGroup: ArchitectureGroup | null;
+  groups: ArchitectureGroup[];
   onUpdateNode: (id: string, edits: NodeEdits) => void;
   onUpdateEdgeProtocol: (id: string, protocol: ProtocolId) => void;
   onDeleteNode: (id: string) => void;
   onDeleteEdge: (id: string) => void;
+  onSetNodeGroup: (nodeId: string, groupId: string | null) => void;
+  onCreateContext: (nodeId: string) => void;
+  onUpdateGroup: (id: string, edits: GroupEdits) => void;
+  onDeleteGroup: (id: string) => void;
 }
 
 export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
-  const { selectedNode, selectedEdge } = props;
+  const { selectedNode, selectedEdge, selectedGroup } = props;
 
   return (
     <aside className="atlas-inspector" aria-label="Inspector">
       {selectedNode ? (
         <NodeInspector node={selectedNode} {...props} />
+      ) : selectedGroup ? (
+        <GroupInspector group={selectedGroup} {...props} />
       ) : selectedEdge ? (
         <EdgeInspector edge={selectedEdge} {...props} />
       ) : (
@@ -40,8 +51,11 @@ export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
 
 function NodeInspector({
   node,
+  groups,
   onUpdateNode,
   onDeleteNode,
+  onSetNodeGroup,
+  onCreateContext,
 }: { node: ArchitectureNode } & InspectorPanelProps): JSX.Element {
   return (
     <div className="atlas-inspector__content">
@@ -73,6 +87,30 @@ function NodeInspector({
         </select>
       </Field>
 
+      <Field label="Bounded context">
+        <select
+          className="atlas-input"
+          value={node.groupId ?? ''}
+          onChange={(event) =>
+            onSetNodeGroup(node.id, event.target.value === '' ? null : event.target.value)
+          }
+        >
+          <option value="">None</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="atlas-button atlas-button--small atlas-field__action"
+          onClick={() => onCreateContext(node.id)}
+        >
+          ＋ New context
+        </button>
+      </Field>
+
       <Field label="Description">
         <textarea
           className="atlas-input atlas-textarea"
@@ -89,6 +127,61 @@ function NodeInspector({
         onClick={() => onDeleteNode(node.id)}
       >
         Delete node
+      </button>
+    </div>
+  );
+}
+
+function GroupInspector({
+  group,
+  onUpdateGroup,
+  onDeleteGroup,
+}: { group: ArchitectureGroup } & InspectorPanelProps): JSX.Element {
+  return (
+    <div className="atlas-inspector__content">
+      <Header title="Bounded context" subtitle={group.id} />
+
+      <Field label="Name">
+        <input
+          className="atlas-input"
+          type="text"
+          value={group.name}
+          spellCheck={false}
+          onChange={(event) => onUpdateGroup(group.id, { name: event.target.value })}
+        />
+      </Field>
+
+      <Field label="Colour">
+        <div className="atlas-swatches">
+          {GROUP_COLORS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              className={`atlas-swatch${group.color === color ? ' atlas-swatch--active' : ''}`}
+              style={{ background: color }}
+              aria-label={`Use colour ${color}`}
+              onClick={() => onUpdateGroup(group.id, { color })}
+            />
+          ))}
+        </div>
+      </Field>
+
+      <Field label="Description">
+        <textarea
+          className="atlas-input atlas-textarea"
+          value={group.description ?? ''}
+          rows={4}
+          placeholder="What does this bounded context own?"
+          onChange={(event) => onUpdateGroup(group.id, { description: event.target.value })}
+        />
+      </Field>
+
+      <button
+        type="button"
+        className="atlas-button atlas-button--danger"
+        onClick={() => onDeleteGroup(group.id)}
+      >
+        Delete context
       </button>
     </div>
   );
@@ -135,8 +228,8 @@ function EmptyInspector(): JSX.Element {
     <div className="atlas-inspector__empty">
       <div className="atlas-inspector__empty-title">Nothing selected</div>
       <p className="atlas-inspector__empty-body">
-        Select a node or connection to edit it, or drag a component from the
-        palette onto the canvas.
+        Select a node, connection, or bounded context to edit it, or drag a
+        component from the palette onto the canvas.
       </p>
     </div>
   );
