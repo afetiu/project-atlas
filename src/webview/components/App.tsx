@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 
 import { diffModels, summarizeDelta } from '../../shared/model/diff';
+import { computeLens, type MapLens } from '../../shared/model/lenses';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
 import {
@@ -28,6 +29,7 @@ import { DiffOverlay } from './DiffOverlay';
 import { InsightsPanel } from './InsightsPanel';
 import { InspectorPanel } from './InspectorPanel';
 import { Legend } from './Legend';
+import { LensSwitcher } from './LensSwitcher';
 import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
@@ -46,6 +48,7 @@ interface PersistedView {
   componentsCollapsed?: boolean;
   sidebarCollapsed?: boolean;
   typeFilter?: string[];
+  lens?: MapLens;
 }
 
 export function App(): JSX.Element {
@@ -68,6 +71,7 @@ export function App(): JSX.Element {
   const [typeFilter, setTypeFilter] = useState<ReadonlySet<NodeTypeId>>(
     new Set(persisted.typeFilter as NodeTypeId[] | undefined),
   );
+  const [lens, setLens] = useState<MapLens>(persisted.lens ?? 'structure');
   // Persist view preferences so a reload restores collapsed panels and filters.
   useEffect(() => {
     setViewState<PersistedView>({
@@ -76,8 +80,14 @@ export function App(): JSX.Element {
       componentsCollapsed,
       sidebarCollapsed,
       typeFilter: [...typeFilter],
+      lens,
     });
-  }, [rightTab, collapsedGroups, componentsCollapsed, sidebarCollapsed, typeFilter]);
+  }, [rightTab, collapsedGroups, componentsCollapsed, sidebarCollapsed, typeFilter, lens]);
+
+  const overlay = useMemo(
+    () => computeLens(model, lens, { driftedNodeIds: ai.driftedNodeIds }),
+    [model, lens, ai.driftedNodeIds],
+  );
 
   const toggleTypeFilter = useCallback((type: NodeTypeId) => {
     setTypeFilter((prev) => {
@@ -394,7 +404,9 @@ export function App(): JSX.Element {
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleCollapse}
             typeFilter={typeFilter}
+            overlay={overlay}
           />
+          {model.nodes.length > 0 && <LensSwitcher lens={lens} onChange={setLens} />}
           <Legend model={model} activeFilter={typeFilter} onToggleFilter={toggleTypeFilter} />
           {model.nodes.length === 0 && ai.status.busy && (
             <div className="atlas-empty">

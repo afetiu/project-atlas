@@ -22,6 +22,7 @@ export function FloatingEdge({
   markerEnd,
   label,
   selected,
+  data,
 }: EdgeProps): JSX.Element | null {
   const sourceNode = useStore(useCallback((store) => store.nodeInternals.get(source), [source]));
   const targetNode = useStore(useCallback((store) => store.nodeInternals.get(target), [target]));
@@ -40,9 +41,13 @@ export function FloatingEdge({
     targetPosition: targetPos,
   });
 
+  // The coupling lens widens busy "roads".
+  const weight = (data as { weight?: number } | undefined)?.weight;
+  const style = weight ? { strokeWidth: weight + 0.5 } : undefined;
+
   return (
     <>
-      <BaseEdge id={id} path={path} markerEnd={markerEnd} />
+      <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
       {label && (
         <EdgeLabelRenderer>
           <div

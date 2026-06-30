@@ -243,6 +243,45 @@ body {
   box-shadow: 0 0 0 1px var(--node-accent, var(--accent)), var(--shadow-soft);
 }
 
+/* ---------------- Map lens overlay tones ---------------- */
+/* The active lens recolours each node by its semantic tone, like a city-builder
+   data layer. Tones override the type accent so the layer reads at a glance. */
+
+.atlas-node--ov-danger {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 1px #ff6b6b, 0 0 18px -2px rgba(255, 107, 107, 0.55);
+}
+.atlas-node--ov-warn {
+  border-color: #f0a868;
+  box-shadow: 0 0 0 1px #f0a868, 0 0 16px -3px rgba(240, 168, 104, 0.5);
+}
+.atlas-node--ov-ok {
+  border-color: #4fd1a1;
+  box-shadow: 0 0 0 1px #4fd1a1, 0 0 14px -4px rgba(79, 209, 161, 0.45);
+}
+.atlas-node--ov-info {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.atlas-node--ov-hot {
+  border-color: #ffb454;
+  box-shadow: 0 0 0 1px #ffb454, 0 0 22px -2px rgba(255, 180, 84, 0.6);
+}
+.atlas-node--ov-muted {
+  opacity: 0.45;
+}
+
+/* Edge (road) tones for the active lens. */
+.atlas-edge--danger .react-flow__edge-path {
+  stroke: #ff6b6b;
+}
+.atlas-edge--warn .react-flow__edge-path {
+  stroke: #f0a868;
+}
+.atlas-edge--hot .react-flow__edge-path {
+  stroke: #ffb454;
+}
+
 .atlas-node__icon {
   display: inline-flex;
   align-items: center;
@@ -1692,6 +1731,46 @@ select.atlas-input {
   color: #1a1205;
   font-size: 10px;
   font-weight: 700;
+}
+
+/* ---------------- Map lens switcher ---------------- */
+
+.atlas-lenses {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(6px);
+}
+
+.atlas-lens {
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--transition), background var(--transition);
+}
+
+.atlas-lens:hover {
+  color: var(--text);
+}
+
+.atlas-lens--active {
+  background: var(--accent);
+  color: #0a0a0e;
+  font-weight: 550;
 }
 
 /* ---------------- Legend ---------------- */

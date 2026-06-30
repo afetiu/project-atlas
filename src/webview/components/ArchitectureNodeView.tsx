@@ -21,10 +21,11 @@ function ArchitectureNodeViewComponent({
   const { node } = data;
   const definition = getNodeTypeDefinition(node.type);
   const openable = !!node.mapping?.path;
+  const overlayClass = data.overlayTone ? ` atlas-node--ov-${data.overlayTone}` : '';
 
   return (
     <div
-      className={`atlas-node${selected ? ' atlas-node--selected' : ''}`}
+      className={`atlas-node${selected ? ' atlas-node--selected' : ''}${overlayClass}`}
       style={{ ['--node-accent' as string]: definition.accent }}
       title={openable ? `Double-click to open ${node.mapping?.path}` : undefined}
     >

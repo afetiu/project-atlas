@@ -21,6 +21,7 @@ import ReactFlow, {
 } from 'reactflow';
 
 import { isNodeTypeId, type NodeTypeId } from '../../shared/model/nodeTypes';
+import type { LensOverlay } from '../../shared/model/lenses';
 import type { RuleSeverity } from '../../shared/rules/rules';
 import {
   ARCHITECTURE_COLLAPSED_TYPE,
@@ -60,6 +61,8 @@ interface ArchitectureCanvasProps {
   collapsedGroups: ReadonlySet<string>;
   onToggleCollapse: (groupId: string) => void;
   typeFilter: ReadonlySet<NodeTypeId>;
+  /** Active data-overlay lens (recolours the map); 'structure' is the plain map. */
+  overlay: LensOverlay;
 }
 
 const nodeTypes = {
@@ -96,6 +99,7 @@ export function ArchitectureCanvas({
   collapsedGroups,
   onToggleCollapse,
   typeFilter,
+  overlay,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition } = useReactFlow();
   const {
@@ -161,6 +165,8 @@ export function ArchitectureCanvas({
         ...node.data,
         issueSeverity: issueByNode.get(node.id),
         drifted: driftedNodes.has(node.id),
+        // The active map lens recolours each node by its semantic tone.
+        overlayTone: overlay.nodeTone.get(node.id),
       },
     }));
     return [...groupNodes, ...collapsedNodes, ...flowNodes];
@@ -174,6 +180,7 @@ export function ArchitectureCanvas({
     neighborIds,
     filtering,
     typeFilter,
+    overlay,
   ]);
 
   const edges = useMemo(() => {
@@ -181,13 +188,18 @@ export function ArchitectureCanvas({
       const incident = hoveredId
         ? edge.source === hoveredId || edge.target === hoveredId
         : true;
+      const tone = overlay.edgeTone.get(edge.id);
+      const weight = overlay.edgeWeight.get(edge.id);
+      const hoverClass = hoveredId ? (incident ? 'atlas-edge-hl' : 'atlas-faded') : undefined;
+      const toneClass = tone ? `atlas-edge--${tone}` : undefined;
       return {
         ...edge,
         selected: edge.id === selection.edgeId,
-        className: hoveredId ? (incident ? 'atlas-edge-hl' : 'atlas-faded') : undefined,
+        className: [hoverClass, toneClass].filter(Boolean).join(' ') || undefined,
+        ...(weight ? { data: { ...edge.data, weight } } : {}),
       };
     });
-  }, [baseEdges, selection.edgeId, hoveredId]);
+  }, [baseEdges, selection.edgeId, hoveredId, overlay]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {

@@ -8,6 +8,7 @@
 
 import { MarkerType, type Edge, type Node } from 'reactflow';
 
+import type { OverlayTone } from '../../shared/model/lenses';
 import { getProtocolLabel } from '../../shared/model/protocols';
 import type {
   ArchitectureEdge,
@@ -39,6 +40,8 @@ export interface ArchitectureNodeData {
   issueSeverity?: RuleSeverity;
   /** Code under this component's mapping changed since the last detection. */
   drifted?: boolean;
+  /** Semantic tone from the active map lens (recolours the node). */
+  overlayTone?: OverlayTone;
 }
 
 export interface ArchitectureGroupData {
@@ -48,6 +51,8 @@ export interface ArchitectureGroupData {
 
 export interface ArchitectureEdgeData {
   protocol: ArchitectureEdge['protocol'];
+  /** Road "traffic" weight (1–3) under the coupling lens. */
+  weight?: number;
 }
 
 export type FlowNode = Node<ArchitectureNodeData>;
