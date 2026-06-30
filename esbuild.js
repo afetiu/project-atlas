@@ -91,8 +91,15 @@ const diffCliConfig = {
   outfile: 'dist/atlas-diff.mjs',
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const extractCliConfig = {
+  ...cliConfig,
+  entryPoints: ['src/cli/extract.ts'],
+  outfile: 'dist/atlas-extract.mjs',
+};
+
 async function build() {
-  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig, diffCliConfig];
+  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig, diffCliConfig, extractCliConfig];
   if (watch) {
     const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
     await Promise.all(contexts.map((ctx) => ctx.watch()));

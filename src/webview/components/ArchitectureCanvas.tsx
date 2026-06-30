@@ -7,7 +7,7 @@
  * second source of truth for the graph inside the canvas.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -101,7 +101,7 @@ export function ArchitectureCanvas({
   typeFilter,
   overlay,
 }: ArchitectureCanvasProps): JSX.Element {
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const {
     model,
     moveNodes,
@@ -120,6 +120,20 @@ export function ArchitectureCanvas({
   // cheap (see HOVER_HIGHLIGHT_LIMIT).
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoverEnabled = model.nodes.length <= HOVER_HIGHLIGHT_LIMIT;
+
+  // Fit the whole map into view the first time it becomes non-empty (e.g. a
+  // detection or extraction loads a large model after mount), so it's never
+  // left zoomed into a corner.
+  const fittedRef = useRef(false);
+  useEffect(() => {
+    if (!fittedRef.current && model.nodes.length > 0) {
+      fittedRef.current = true;
+      // Defer a frame so the nodes are measured before fitting.
+      setTimeout(() => fitView({ padding: 0.18, duration: 350 }), 60);
+    } else if (model.nodes.length === 0) {
+      fittedRef.current = false;
+    }
+  }, [model.nodes.length, fitView]);
 
   const baseEdges = useMemo(() => toFlowEdges(model, collapsedGroups), [model, collapsedGroups]);
 
