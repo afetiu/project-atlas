@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { groupColorForIndex } from '../../shared/model/groups';
+import { computeMapLayout } from '../../shared/model/mapLayout';
 import { NODE_TYPES, type NodeTypeId } from '../../shared/model/nodeTypes';
 import { DEFAULT_PROTOCOL, type ProtocolId } from '../../shared/model/protocols';
 import {
@@ -59,6 +60,7 @@ export interface ArchitectureModelApi {
   removeGroups: (ids: string[]) => void;
   setNodeGroup: (nodeId: string, groupId: string | null) => void;
   loadModel: (model: ArchitectureModel) => void;
+  arrangeAsMap: () => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -124,6 +126,20 @@ export function useArchitectureModel(): ArchitectureModelApi {
     },
     [commit],
   );
+
+  /** Re-arrange every component into the cartographic "map" layout (one undo step). */
+  const arrangeAsMap = useCallback(() => {
+    commit((current) => {
+      const positions = computeMapLayout(current.nodes, current.edges);
+      return {
+        ...current,
+        nodes: current.nodes.map((node) => ({
+          ...node,
+          position: positions.get(node.id) ?? node.position,
+        })),
+      };
+    });
+  }, [commit]);
 
   /** Apply a transform without recording history (used for live drag frames). */
   const commitNoHistory = useCallback(
@@ -408,6 +424,7 @@ export function useArchitectureModel(): ArchitectureModelApi {
     removeGroups,
     setNodeGroup,
     loadModel,
+    arrangeAsMap,
     undo,
     redo,
     canUndo: undoStack.current.length > 0,

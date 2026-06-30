@@ -574,6 +574,11 @@ export function App(): JSX.Element {
             ai.detect();
             setPaletteOpen(false);
           }}
+          onArrange={() => {
+            api.arrangeAsMap();
+            setPaletteOpen(false);
+            reactFlow.fitView({ duration: 400, padding: 0.2 });
+          }}
         />
       )}
     </div>

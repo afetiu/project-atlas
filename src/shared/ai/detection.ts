@@ -13,7 +13,7 @@
 
 import { NODE_TYPE_IDS, isNodeTypeId } from '../model/nodeTypes';
 import { PROTOCOL_IDS, DEFAULT_PROTOCOL, isProtocolId } from '../model/protocols';
-import { computeLayout } from '../model/layout';
+import { computeMapLayout } from '../model/mapLayout';
 import { groupColorForIndex } from '../model/groups';
 import { slugify, uniqueId } from '../model/ids';
 import {
@@ -203,7 +203,7 @@ export function detectedToModel(
   const previous = new Map(
     (options.preservePositionsFrom?.nodes ?? []).map((n) => [n.id, n.position]),
   );
-  const positions = computeLayout(nodes, edges);
+  const positions = computeMapLayout(nodes, edges);
   for (const node of nodes) {
     node.position = previous.get(node.id) ?? positions.get(node.id) ?? node.position;
   }

@@ -7,7 +7,7 @@
  * with auto-laid-out positions, so it drops straight onto the canvas.
  */
 
-import { computeLayout } from '../model/layout';
+import { computeMapLayout } from '../model/mapLayout';
 import { groupColorForIndex } from '../model/groups';
 import { CURRENT_MODEL_VERSION, type ArchitectureModel } from '../model/types';
 import type { NodeTypeId } from '../model/nodeTypes';
@@ -58,7 +58,7 @@ function make(nodes: NodeSpec[], edges: EdgeSpec[]): ArchitectureModel {
     protocol: e.protocol ?? ('http' as ProtocolId),
   }));
 
-  const positions = computeLayout(built, builtEdges);
+  const positions = computeMapLayout(built, builtEdges);
   for (const node of built) {
     node.position = positions.get(node.id) ?? node.position;
   }

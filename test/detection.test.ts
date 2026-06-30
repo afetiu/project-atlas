@@ -77,16 +77,16 @@ test('drops edges referencing unknown nodes and self-loops', () => {
   assert.equal(detectedToModel(detected).edges.length, 0);
 });
 
-test('assigns non-trivial positions via layout', () => {
+test('assigns non-trivial map positions (data flows west→east by tier)', () => {
   const detected: DetectedArchitecture = {
     nodes: [
-      { id: 'a', name: 'A', type: 'service' },
-      { id: 'b', name: 'B', type: 'service' },
+      { id: 'a', name: 'A', type: 'frontend' },
+      { id: 'b', name: 'B', type: 'database' },
     ],
     edges: [{ source: 'a', target: 'b', protocol: 'http' }],
   };
   const model = detectedToModel(detected);
-  // b is downstream of a, so it should be in a later column (greater x).
+  // The frontend sits on the coast (west); the datastore in the interior (east).
   const a = model.nodes.find((n) => n.id === 'a')!;
   const b = model.nodes.find((n) => n.id === 'b')!;
   assert.ok(b.position.x > a.position.x);

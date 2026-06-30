@@ -349,7 +349,16 @@ export function ArchitectureCanvas({
         minZoom={0.2}
         maxZoom={2}
       >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#2a2a33" />
+        {/* A faint graticule (like a sea-chart grid) over the water base set in
+            CSS, so the canvas reads as a map surface rather than a blank pane. */}
+        <Background variant={BackgroundVariant.Lines} gap={64} size={1} color="rgba(120,140,170,0.05)" />
+        <Background
+          id="fine"
+          variant={BackgroundVariant.Dots}
+          gap={32}
+          size={1}
+          color="rgba(120,140,170,0.06)"
+        />
         <MiniMap
           className="atlas-minimap"
           pannable
