@@ -178,6 +178,11 @@ export interface DetectRequestMessage {
   type: 'ai:detect';
 }
 
+/** Derive the map statically from the code's import graph (no AI), preserving intent. */
+export interface MapFromCodeMessage {
+  type: 'code:map';
+}
+
 /** Send a chat turn to the AI. */
 export interface ChatSendMessage {
   type: 'chat:send';
@@ -236,6 +241,7 @@ export type WebviewToHostMessage =
   | WebviewReadyMessage
   | ModelChangedMessage
   | DetectRequestMessage
+  | MapFromCodeMessage
   | ChatSendMessage
   | ApplyRequestMessage
   | ApplyRevertMessage

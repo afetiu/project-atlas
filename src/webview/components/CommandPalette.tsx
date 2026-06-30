@@ -27,6 +27,7 @@ interface CommandPaletteProps {
   onFocusNode: (id: string) => void;
   onAddNode: (type: NodeTypeId) => void;
   onDetect: () => void;
+  onMapFromCode: () => void;
   onArrange: () => void;
 }
 
@@ -36,6 +37,7 @@ export function CommandPalette({
   onFocusNode,
   onAddNode,
   onDetect,
+  onMapFromCode,
   onArrange,
 }: CommandPaletteProps): JSX.Element {
   const [query, setQuery] = useState('');
@@ -54,7 +56,8 @@ export function CommandPalette({
         hint: 'Create',
         run: () => onAddNode(definition.id),
       })),
-      { id: 'detect', label: 'Detect from code', hint: 'AI', run: onDetect },
+      { id: 'map-code', label: 'Map from code', hint: 'Static', run: onMapFromCode },
+      { id: 'detect', label: 'Detect with AI', hint: 'AI', run: onDetect },
       { id: 'arrange', label: 'Arrange as map', hint: 'Layout', run: onArrange },
     ];
     const nodes: CommandItem[] = model.nodes.map((node) => ({
@@ -67,7 +70,7 @@ export function CommandPalette({
     const all = [...nodes, ...actions];
     const q = query.trim().toLowerCase();
     return q ? all.filter((item) => item.label.toLowerCase().includes(q)) : all;
-  }, [model.nodes, query, onAddNode, onDetect, onFocusNode, onArrange]);
+  }, [model.nodes, query, onAddNode, onDetect, onMapFromCode, onFocusNode, onArrange]);
 
   // Keep the active index in range as the list shrinks.
   useEffect(() => setActive(0), [query]);

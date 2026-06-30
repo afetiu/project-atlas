@@ -189,6 +189,7 @@ export function App(): JSX.Element {
   }, []);
 
   const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
+  const mapFromCode = useCallback(() => postToHost({ type: 'code:map' }), []);
 
   // Select a node and pan/zoom to it, expanding its context first if collapsed.
   const focusNode = useCallback(
@@ -433,9 +434,18 @@ export function App(): JSX.Element {
                 <button
                   type="button"
                   className="atlas-button atlas-button--accent"
-                  onClick={ai.detect}
+                  onClick={mapFromCode}
+                  title="Derive the map from the code's imports — instant, no AI"
                 >
-                  Detect from code
+                  Map from code
+                </button>
+                <button
+                  type="button"
+                  className="atlas-button"
+                  onClick={ai.detect}
+                  title="Use AI to detect components and intent"
+                >
+                  Detect with AI
                 </button>
                 <button
                   type="button"
@@ -575,6 +585,10 @@ export function App(): JSX.Element {
           }}
           onDetect={() => {
             ai.detect();
+            setPaletteOpen(false);
+          }}
+          onMapFromCode={() => {
+            mapFromCode();
             setPaletteOpen(false);
           }}
           onArrange={() => {

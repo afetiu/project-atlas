@@ -12,6 +12,8 @@
  *   apply          → AI code-gen   → git diff + advance baseline
  */
 
+import { relative } from 'path';
+
 import * as vscode from 'vscode';
 
 import type { ChatTurn } from '../../shared/ai/chat';
@@ -35,6 +37,8 @@ import { computeDrift } from '../workspace/drift';
 import { getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
 import { resolveWithinRoot } from '../workspace/paths';
 import { McpBridge, type McpServerRegistry } from '../mcp/McpBridge';
+import { extractArchitecture } from '../../shared/extract/staticExtract';
+import { mergeExtraction } from '../../shared/extract/merge';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -122,6 +126,9 @@ export class ArchitecturePanel {
         break;
       case 'ai:detect':
         await this.runDetect();
+        break;
+      case 'code:map':
+        await this.runMapFromCode();
         break;
       case 'chat:send':
         await this.runChat(message.message, message.history);
@@ -246,6 +253,55 @@ export class ArchitecturePanel {
       this.reportAiError(error);
     } finally {
       this.end();
+    }
+  }
+
+  /**
+   * Derive the map from the code's import graph — instant, deterministic, no AI.
+   * Re-running it keeps the map current while preserving names, layout, and
+   * bindings (see mergeExtraction), so the map stays in sync with the code.
+   */
+  private async runMapFromCode(): Promise<void> {
+    const root =
+      vscode.workspace.getConfiguration('atlas').get<string>('sourceRoot')?.trim() || 'src';
+    this.post({ type: 'ai:status', busy: true, job: 'detect', label: 'Mapping from code…' });
+    try {
+      const pattern = new vscode.RelativePattern(this.deps.workspaceFolder, `${root}/**/*.{ts,tsx,js,jsx,mjs,cjs}`);
+      const uris = await vscode.workspace.findFiles(
+        pattern,
+        '**/{node_modules,dist,dist-test,out,build,coverage}/**',
+      );
+      const files = await Promise.all(
+        uris
+          .filter((uri) => !/\.d\.ts$|\.(test|spec)\./.test(uri.fsPath))
+          .map(async (uri) => ({
+            path: relativePosix(this.deps.cwd, uri.fsPath),
+            content: new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)),
+          })),
+      );
+      if (files.length === 0) {
+        void vscode.window.showWarningMessage(
+          `Atlas found no source files under "${root}/". Set "atlas.sourceRoot" to your code's root.`,
+        );
+        return;
+      }
+      const extracted = extractArchitecture(files, { sourceRoot: root, depth: 2 });
+      const { model: current } = await this.deps.fileService.read();
+      const merged = mergeExtraction(current, extracted);
+      await this.deps.fileService.write(merged);
+      await this.deps.baseline.set(merged);
+      await this.deps.baseline.setCommit(await getHeadCommit(this.deps.cwd));
+      this.deps.logger.info(
+        `Mapped from code: ${merged.nodes.length} components, ${merged.edges.length} dependencies.`,
+      );
+      this.post({ type: 'model:loaded', model: merged });
+      await this.pushSyncStatus(merged);
+      await this.pushDriftStatus(merged);
+    } catch (error) {
+      this.deps.logger.error(`Map from code failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not map this repository from code.' });
+    } finally {
+      this.post({ type: 'ai:status', busy: false });
     }
   }
 
@@ -566,4 +622,9 @@ export class ArchitecturePanel {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** POSIX repo-relative path for an absolute fs path, for the extractor. */
+function relativePosix(root: string, fsPath: string): string {
+  return relative(root, fsPath).replace(/\\/g, '/');
 }
