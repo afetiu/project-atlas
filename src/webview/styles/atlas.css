@@ -271,6 +271,59 @@ body {
   opacity: 0.45;
 }
 
+/* Live MCP binding: a pulsing dot marks a node that's a real, operable handle. */
+.atlas-node__live {
+  position: absolute;
+  bottom: -5px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4fd1a1;
+  border: 2px solid var(--bg-elevated);
+  box-shadow: 0 0 0 0 rgba(79, 209, 161, 0.6);
+  animation: atlas-pulse 2.2s infinite;
+}
+
+@keyframes atlas-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(79, 209, 161, 0.5); }
+  70% { box-shadow: 0 0 0 7px rgba(79, 209, 161, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(79, 209, 161, 0); }
+}
+
+.atlas-binding {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.atlas-binding__status {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.atlas-binding__status--live {
+  color: #4fd1a1;
+  font-weight: 600;
+}
+
+.atlas-binding__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.atlas-binding__tool {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Edge (road) tones for the active lens. */
 .atlas-edge--danger .react-flow__edge-path {
   stroke: #ff6b6b;

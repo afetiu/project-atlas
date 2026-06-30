@@ -18,6 +18,7 @@ import {
   type ArchitectureGroup,
   type ArchitectureModel,
   type ArchitectureNode,
+  type NodeBinding,
   type NodeCodeMapping,
   type Position,
 } from '../model/types';
@@ -46,6 +47,7 @@ export function serializeModel(model: ArchitectureModel): string {
       // Only emit optional fields when they carry information, keeping the file lean.
       ...(node.groupId ? { groupId: node.groupId } : {}),
       ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
+      ...(node.binding?.server ? { binding: compactBinding(node.binding) } : {}),
       // Unknown/future fields survive a round-trip, but must never shadow a
       // canonical key (that would silently change a node's type/id on save).
       ...safeExtra(node.extra, NODE_KEYS),
@@ -73,7 +75,7 @@ export function serializeModel(model: ArchitectureModel): string {
 
 // Canonical keys per entity. These are both the keys we emit explicitly and the
 // keys `extra` is forbidden from overriding.
-const NODE_KEYS = ['id', 'name', 'type', 'description', 'groupId', 'mapping', 'position'];
+const NODE_KEYS = ['id', 'name', 'type', 'description', 'groupId', 'mapping', 'binding', 'position'];
 const EDGE_KEYS = ['id', 'source', 'target', 'protocol'];
 const GROUP_KEYS = ['id', 'name', 'description', 'color', 'mapping'];
 const MODEL_KEYS = ['version', 'nodes', 'edges', 'groups'];
@@ -206,6 +208,10 @@ function normalizeNode(raw: unknown, index: number): ArchitectureNode {
   if (groupId) {
     node.groupId = groupId;
   }
+  const binding = normalizeBinding(record.binding);
+  if (binding) {
+    node.binding = binding;
+  }
   const extra = extraOf(record, [
     'id',
     'name',
@@ -214,6 +220,7 @@ function normalizeNode(raw: unknown, index: number): ArchitectureNode {
     'position',
     'mapping',
     'groupId',
+    'binding',
   ]);
   if (extra) {
     node.extra = extra;
@@ -272,6 +279,27 @@ function normalizeMapping(raw: unknown): NodeCodeMapping | undefined {
     framework: asString(record.framework) || undefined,
   });
   return hasMapping(mapping) ? mapping : undefined;
+}
+
+function normalizeBinding(raw: unknown): NodeBinding | undefined {
+  if (raw === null || typeof raw !== 'object') {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  const server = asString(record.server);
+  if (!server) {
+    return undefined;
+  }
+  const tools = Array.isArray(record.tools)
+    ? record.tools.filter((t): t is string => typeof t === 'string')
+    : undefined;
+  return tools && tools.length > 0 ? { server, tools } : { server };
+}
+
+function compactBinding(binding: NodeBinding): NodeBinding {
+  return binding.tools && binding.tools.length > 0
+    ? { server: binding.server, tools: binding.tools }
+    : { server: binding.server };
 }
 
 function compactMapping(mapping: NodeCodeMapping): NodeCodeMapping {

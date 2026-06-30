@@ -22,6 +22,7 @@ import {
   type ArchitectureGroup,
   type ArchitectureModel,
   type ArchitectureNode,
+  type NodeBinding,
   type Position,
 } from '../../shared/model/types';
 import { onHostMessage, postToHost } from '../vscodeApi';
@@ -33,6 +34,8 @@ export interface NodeEdits {
   name?: string;
   type?: NodeTypeId;
   description?: string;
+  /** Live MCP binding; pass null/undefined to clear. */
+  binding?: NodeBinding;
 }
 
 export interface GroupEdits {

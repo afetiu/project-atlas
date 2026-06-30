@@ -12,7 +12,7 @@ import { analyzeArchitecture } from './insights';
 import { computeMetrics } from './metrics';
 import type { ArchitectureModel } from './types';
 
-export type MapLens = 'structure' | 'risk' | 'drift' | 'coverage' | 'coupling';
+export type MapLens = 'structure' | 'risk' | 'drift' | 'coverage' | 'coupling' | 'live';
 
 /** Semantic overlay tones; the webview resolves these to colours. */
 export type OverlayTone = 'danger' | 'warn' | 'ok' | 'info' | 'muted' | 'hot';
@@ -34,6 +34,7 @@ export const LENSES: Array<{ id: MapLens; label: string; hint: string }> = [
   { id: 'drift', label: 'Drift', hint: 'Changed in code since last detection' },
   { id: 'coverage', label: 'Coverage', hint: 'Mapped to code vs pure intent' },
   { id: 'coupling', label: 'Traffic', hint: 'Busiest components & routes' },
+  { id: 'live', label: 'Live', hint: 'Bound to a real, operable service vs pure intent' },
 ];
 
 function empty(): LensOverlay {
@@ -56,7 +57,17 @@ export function computeLens(
       return coverageLens(model);
     case 'coupling':
       return couplingLens(model);
+    case 'live':
+      return liveLens(model);
   }
+}
+
+function liveLens(model: ArchitectureModel): LensOverlay {
+  const out = empty();
+  for (const node of model.nodes) {
+    out.nodeTone.set(node.id, node.binding?.server ? 'ok' : 'muted');
+  }
+  return out;
 }
 
 function riskLens(model: ArchitectureModel): LensOverlay {

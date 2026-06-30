@@ -56,6 +56,15 @@ test('coverage lens: mapped ok, unmapped warn, external muted', () => {
   assert.equal(o.nodeTone.get('x'), 'muted');
 });
 
+test('live lens marks bound nodes ok and unbound muted', () => {
+  const o = computeLens(
+    model([n('a', 'service', { binding: { server: 'postgres' } }), n('b')]),
+    'live',
+  );
+  assert.equal(o.nodeTone.get('a'), 'ok');
+  assert.equal(o.nodeTone.get('b'), 'muted');
+});
+
 test('coupling lens makes the busiest hub hot and weights roads', () => {
   // hub depends on 3 others; it should be the hottest.
   const o = computeLens(

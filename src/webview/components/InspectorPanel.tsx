@@ -139,6 +139,8 @@ function NodeInspector({
         </Field>
       )}
 
+      <ConnectionField node={node} onUpdateNode={onUpdateNode} />
+
       <button
         type="button"
         className="atlas-button atlas-button--danger"
@@ -147,6 +149,50 @@ function NodeInspector({
         Delete node
       </button>
     </div>
+  );
+}
+
+/**
+ * Binds a component to a live MCP server. A bound node is "live" — a handle to
+ * a real, operable thing — rather than pure design intent. (Invoking the
+ * server's tools is wired up host-side; this is where you connect it.)
+ */
+function ConnectionField({
+  node,
+  onUpdateNode,
+}: {
+  node: ArchitectureNode;
+  onUpdateNode: InspectorPanelProps['onUpdateNode'];
+}): JSX.Element {
+  const bound = !!node.binding?.server;
+  return (
+    <Field label="Live connection (MCP)">
+      <div className="atlas-binding">
+        <span className={`atlas-binding__status${bound ? ' atlas-binding__status--live' : ''}`}>
+          {bound ? '● Live' : '○ Intent only'}
+        </span>
+        <input
+          className="atlas-input"
+          type="text"
+          value={node.binding?.server ?? ''}
+          spellCheck={false}
+          placeholder="MCP server (e.g. postgres, github)"
+          onChange={(event) => {
+            const server = event.target.value.trim();
+            onUpdateNode(node.id, { binding: server ? { server } : undefined });
+          }}
+        />
+      </div>
+      {bound && node.binding?.tools && node.binding.tools.length > 0 && (
+        <div className="atlas-binding__tools">
+          {node.binding.tools.map((tool) => (
+            <span key={tool} className="atlas-binding__tool">
+              {tool}
+            </span>
+          ))}
+        </div>
+      )}
+    </Field>
   );
 }
 

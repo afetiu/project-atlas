@@ -40,6 +40,19 @@ export interface NodeCodeMapping {
  */
 export type ExtraFields = Record<string, unknown>;
 
+/**
+ * Binds a component to a live capability provider (an MCP server), turning the
+ * node from a picture into an operable handle: when bound, the node represents a
+ * real, running thing you can interact with (query the database, call the
+ * service) through that server's tools. Unbound nodes are pure design intent.
+ */
+export interface NodeBinding {
+  /** Identifier/name of the MCP server that operates this component. */
+  server: string;
+  /** Tools the server exposes for this component, if known (for display). */
+  tools?: string[];
+}
+
 /** A single architecture component (service, database, queue, …). */
 export interface ArchitectureNode {
   id: string;
@@ -51,6 +64,8 @@ export interface ArchitectureNode {
   mapping?: NodeCodeMapping;
   /** Optional bounded context / domain this component belongs to. */
   groupId?: string;
+  /** Optional live binding to an MCP server that operates this component. */
+  binding?: NodeBinding;
   extra?: ExtraFields;
 }
 

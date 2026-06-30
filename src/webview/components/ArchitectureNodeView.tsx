@@ -41,6 +41,14 @@ function ArchitectureNodeViewComponent({
         </span>
       )}
 
+      {node.binding?.server && (
+        <span
+          className="atlas-node__live"
+          title={`Live — bound to ${node.binding.server}`}
+          aria-label={`live, bound to ${node.binding.server}`}
+        />
+      )}
+
       <div className="atlas-node__icon">
         <NodeIcon type={node.type} />
       </div>

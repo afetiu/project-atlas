@@ -120,6 +120,32 @@ test('coerces unknown type and protocol to defaults', () => {
   assert.equal(model.edges[0].protocol, 'http');
 });
 
+test('round-trips a live MCP binding on a node', () => {
+  const model: ArchitectureModel = {
+    version: 1,
+    nodes: [
+      {
+        id: 'db',
+        name: 'Orders DB',
+        type: 'database',
+        description: '',
+        position: { x: 0, y: 0 },
+        binding: { server: 'postgres', tools: ['query', 'describe'] },
+      },
+    ],
+    edges: [],
+    groups: [],
+  };
+  const back = deserializeModel(serializeModel(model));
+  assert.deepEqual(back.nodes[0].binding, { server: 'postgres', tools: ['query', 'describe'] });
+  // A binding without a server name is dropped.
+  const text = serializeModel({
+    ...model,
+    nodes: [{ ...model.nodes[0], binding: { server: '' } }],
+  });
+  assert.equal(deserializeModel(text).nodes[0].binding, undefined);
+});
+
 test('extra fields can never shadow a canonical key on serialize', () => {
   // A node whose `extra` carries a key that collides with a real field must not
   // be able to overwrite that field when written back out.
