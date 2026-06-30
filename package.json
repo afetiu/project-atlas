@@ -85,6 +85,38 @@
           "default": "",
           "scope": "machine-overridable",
           "markdownDescription": "Command run after code generation to verify the result (e.g. `npm run typecheck`). The architecture baseline only advances when this succeeds. Leave empty to verify by mapped-path existence only. For safety this runs only in a trusted workspace, and cannot be set by a repository's workspace settings."
+        },
+        "atlas.mcpServers": {
+          "type": "object",
+          "default": {},
+          "scope": "machine-overridable",
+          "markdownDescription": "MCP servers Atlas can connect to, so a component bound to one becomes operable from the map. Each key is a server name (matched by a node's binding); the value is `{ \"command\": \"…\", \"args\": [\"…\"], \"env\": { … } }`. Example: `{ \"postgres\": { \"command\": \"npx\", \"args\": [\"-y\", \"@modelcontextprotocol/server-postgres\", \"postgres://…\"] } }`.",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "cwd": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "command"
+            ]
+          }
         }
       }
     }

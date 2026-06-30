@@ -15,6 +15,7 @@ import type {
   ArchitectureNode,
 } from '../../shared/model/types';
 import type { GroupEdits, NodeEdits } from '../model/useArchitectureModel';
+import type { McpState } from '../model/useMcp';
 
 interface InspectorPanelProps {
   selectedNode: ArchitectureNode | null;
@@ -32,6 +33,8 @@ interface InspectorPanelProps {
   onOpenFile: (path: string) => void;
   /** Focus+select the context name field (set right after creating a context). */
   autoFocusGroupName?: boolean;
+  /** Live MCP state, for operating a bound component from the inspector. */
+  mcp: McpState;
 }
 
 export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
@@ -60,6 +63,7 @@ function NodeInspector({
   onSetNodeGroup,
   onCreateContext,
   onOpenFile,
+  mcp,
 }: { node: ArchitectureNode } & InspectorPanelProps): JSX.Element {
   return (
     <div className="atlas-inspector__content">
@@ -139,7 +143,7 @@ function NodeInspector({
         </Field>
       )}
 
-      <ConnectionField node={node} onUpdateNode={onUpdateNode} />
+      <ConnectionField node={node} onUpdateNode={onUpdateNode} mcp={mcp} />
 
       <button
         type="button"
@@ -160,11 +164,19 @@ function NodeInspector({
 function ConnectionField({
   node,
   onUpdateNode,
+  mcp,
 }: {
   node: ArchitectureNode;
   onUpdateNode: InspectorPanelProps['onUpdateNode'];
+  mcp: McpState;
 }): JSX.Element {
-  const bound = !!node.binding?.server;
+  const server = node.binding?.server ?? '';
+  const bound = !!server;
+  const live = mcp.toolsByNode[node.id];
+  const result = mcp.resultByNode[node.id];
+  const tools: Array<{ name: string; description?: string }> =
+    live?.tools ?? node.binding?.tools?.map((name) => ({ name, description: undefined })) ?? [];
+
   return (
     <Field label="Live connection (MCP)">
       <div className="atlas-binding">
@@ -174,23 +186,48 @@ function ConnectionField({
         <input
           className="atlas-input"
           type="text"
-          value={node.binding?.server ?? ''}
+          value={server}
           spellCheck={false}
           placeholder="MCP server (e.g. postgres, github)"
           onChange={(event) => {
-            const server = event.target.value.trim();
-            onUpdateNode(node.id, { binding: server ? { server } : undefined });
+            const next = event.target.value.trim();
+            onUpdateNode(node.id, { binding: next ? { server: next } : undefined });
           }}
         />
       </div>
-      {bound && node.binding?.tools && node.binding.tools.length > 0 && (
+
+      {bound && (
+        <button
+          type="button"
+          className="atlas-button atlas-button--small atlas-binding__connect"
+          onClick={() => mcp.listTools(node.id, server)}
+        >
+          {live?.loading ? 'Connecting…' : '↻ Load tools'}
+        </button>
+      )}
+
+      {live?.error && <div className="atlas-binding__error">{live.error}</div>}
+
+      {tools.length > 0 && (
         <div className="atlas-binding__tools">
-          {node.binding.tools.map((tool) => (
-            <span key={tool} className="atlas-binding__tool">
-              {tool}
-            </span>
+          {tools.map((tool) => (
+            <button
+              key={tool.name}
+              type="button"
+              className="atlas-binding__tool atlas-binding__tool--run"
+              title={tool.description ? `${tool.description} — click to run` : 'Run this tool'}
+              onClick={() => mcp.callTool(node.id, server, tool.name)}
+            >
+              {tool.name}
+            </button>
           ))}
         </div>
+      )}
+
+      {result && (
+        <pre className={`atlas-binding__result${result.ok ? '' : ' atlas-binding__result--err'}`}>
+          {result.running ? `Running ${result.tool}…` : `${result.tool} →\n${result.text}`}
+        </pre>
       )}
     </Field>
   );

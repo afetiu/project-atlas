@@ -124,6 +124,24 @@ export interface ApplyRevertedMessage {
   ok: boolean;
 }
 
+/** Live tools a bound component's MCP server exposes (or an error). */
+export interface McpToolsMessage {
+  type: 'mcp:tools';
+  nodeId: string;
+  server: string;
+  tools?: Array<{ name: string; description?: string }>;
+  error?: string;
+}
+
+/** Result of invoking a tool on a bound component's MCP server. */
+export interface McpToolResultMessage {
+  type: 'mcp:toolResult';
+  nodeId: string;
+  tool: string;
+  ok: boolean;
+  text: string;
+}
+
 export type HostToWebviewMessage =
   | ModelLoadedMessage
   | ModelErrorMessage
@@ -136,7 +154,9 @@ export type HostToWebviewMessage =
   | DriftStatusMessage
   | RulesConfigMessage
   | ApplyDoneMessage
-  | ApplyRevertedMessage;
+  | ApplyRevertedMessage
+  | McpToolsMessage
+  | McpToolResultMessage;
 
 /* ------------------------------------------------------------------ */
 /* Webview → extension host                                           */
@@ -196,6 +216,22 @@ export interface OpenFileMessage {
   path: string;
 }
 
+/** List the tools a bound component's MCP server exposes. */
+export interface McpListToolsMessage {
+  type: 'mcp:listTools';
+  nodeId: string;
+  server: string;
+}
+
+/** Invoke a tool on a bound component's MCP server. */
+export interface McpCallToolMessage {
+  type: 'mcp:callTool';
+  nodeId: string;
+  server: string;
+  tool: string;
+  args?: Record<string, unknown>;
+}
+
 export type WebviewToHostMessage =
   | WebviewReadyMessage
   | ModelChangedMessage
@@ -205,4 +241,6 @@ export type WebviewToHostMessage =
   | ApplyRevertMessage
   | AiCancelMessage
   | ConfigureAuthMessage
-  | OpenFileMessage;
+  | OpenFileMessage
+  | McpListToolsMessage
+  | McpCallToolMessage;

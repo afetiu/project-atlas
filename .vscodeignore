@@ -11,6 +11,10 @@ node_modules/**
 # platform-specific `claude` binary is NOT shipped — Atlas uses the `claude`
 # CLI already on the user's machine.
 !node_modules/@anthropic-ai/claude-agent-sdk/**
+# …and the MCP client SDK (+ its deps), loaded at runtime by McpBridge to make
+# bound nodes operable.
+!node_modules/@modelcontextprotocol/**
+!node_modules/zod/**
 .gitignore
 .eslintrc.json
 esbuild.js

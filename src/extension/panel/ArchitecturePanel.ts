@@ -34,6 +34,7 @@ import { RepoWatcher } from '../workspace/RepoWatcher';
 import { computeDrift } from '../workspace/drift';
 import { getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
 import { resolveWithinRoot } from '../workspace/paths';
+import { McpBridge, type McpServerRegistry } from '../mcp/McpBridge';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -57,6 +58,8 @@ export class ArchitecturePanel {
   private lastWebviewEditAt = 0;
   /** State needed to revert the most recent code generation. */
   private lastApply: { baseline: ArchitectureModel; files: string[] } | undefined;
+  /** Lazily-created bridge to configured MCP servers, for operable nodes. */
+  private mcpBridge: McpBridge | undefined;
 
   private constructor(
     private readonly panel: vscode.WebviewPanel,
@@ -140,6 +143,49 @@ export class ArchitecturePanel {
           await this.openMappedPath(message.path);
         }
         break;
+      case 'mcp:listTools':
+        await this.runMcpListTools(message.nodeId, message.server);
+        break;
+      case 'mcp:callTool':
+        await this.runMcpCallTool(message.nodeId, message.server, message.tool, message.args);
+        break;
+    }
+  }
+
+  /** Lazily build the MCP bridge from the user's `atlas.mcpServers` setting. */
+  private mcp(): McpBridge {
+    const registry =
+      vscode.workspace.getConfiguration('atlas').get<McpServerRegistry>('mcpServers') ?? {};
+    if (!this.mcpBridge) {
+      this.mcpBridge = new McpBridge(registry);
+    } else {
+      this.mcpBridge.setRegistry(registry);
+    }
+    return this.mcpBridge;
+  }
+
+  private async runMcpListTools(nodeId: string, server: string): Promise<void> {
+    try {
+      const tools = await this.mcp().listTools(server);
+      this.post({ type: 'mcp:tools', nodeId, server, tools });
+    } catch (error) {
+      this.deps.logger.error(`MCP listTools(${server}) failed: ${String(error)}`);
+      this.post({ type: 'mcp:tools', nodeId, server, error: messageOf(error) });
+    }
+  }
+
+  private async runMcpCallTool(
+    nodeId: string,
+    server: string,
+    tool: string,
+    args: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    try {
+      const result = await this.mcp().callTool(server, tool, args ?? {});
+      this.post({ type: 'mcp:toolResult', nodeId, tool, ok: result.ok, text: result.text });
+    } catch (error) {
+      this.deps.logger.error(`MCP callTool(${server}.${tool}) failed: ${String(error)}`);
+      this.post({ type: 'mcp:toolResult', nodeId, tool, ok: false, text: messageOf(error) });
     }
   }
 
@@ -510,9 +556,14 @@ export class ArchitecturePanel {
   private dispose(): void {
     ArchitecturePanel.current = undefined;
     this.abortController?.abort();
+    void this.mcpBridge?.dispose();
     for (const disposable of this.disposables) {
       disposable.dispose();
     }
     this.panel.dispose();
   }
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

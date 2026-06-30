@@ -34,6 +34,9 @@ const extensionConfig = {
     // ESM-only and spawns the `claude` subprocess; bundling breaks its
     // `import.meta.url` usage. Loaded at runtime via dynamic import() instead.
     '@anthropic-ai/claude-agent-sdk',
+    // ESM MCP client used by McpBridge; spawns server subprocesses. Loaded via
+    // dynamic import() at runtime, so keep it external and ship it in the VSIX.
+    '@modelcontextprotocol/sdk',
   ],
 };
 

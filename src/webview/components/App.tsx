@@ -20,6 +20,7 @@ import {
 } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
+import { useMcp } from '../model/useMcp';
 import { getViewState, postToHost, setViewState } from '../vscodeApi';
 import { ApplyConfirm } from './ApplyConfirm';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
@@ -54,6 +55,7 @@ interface PersistedView {
 export function App(): JSX.Element {
   const api = useArchitectureModel();
   const ai = useAiSession();
+  const mcp = useMcp();
   const reactFlow = useReactFlow();
   const { model, error } = api;
 
@@ -523,6 +525,7 @@ export function App(): JSX.Element {
               onDeleteGroup={handleDeleteGroup}
               onOpenFile={openFile}
               autoFocusGroupName={!!selectedGroup && selectedGroup.id === pendingRenameGroupId}
+              mcp={mcp}
             />
           ) : (
             <AssistantPanel
