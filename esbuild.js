@@ -84,8 +84,15 @@ const cliConfig = {
   banner: mcpConfig.banner, // same require()/__dirname shim for bundled CJS deps
 };
 
+/** @type {import('esbuild').BuildOptions} */
+const diffCliConfig = {
+  ...cliConfig,
+  entryPoints: ['src/cli/diff.ts'],
+  outfile: 'dist/atlas-diff.mjs',
+};
+
 async function build() {
-  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig];
+  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig, diffCliConfig];
   if (watch) {
     const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
     await Promise.all(contexts.map((ctx) => ctx.watch()));

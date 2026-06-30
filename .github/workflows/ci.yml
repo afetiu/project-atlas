@@ -19,8 +19,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: atlas check (example architecture)
+      - name: atlas check (example architecture, health-gated)
         run: |
           mkdir -p /tmp/atlascheck
           cp atlas.example.yaml /tmp/atlascheck/atlas.yaml
-          node dist/atlas-check.mjs /tmp/atlascheck
+          node dist/atlas-check.mjs /tmp/atlascheck --min-score=70
