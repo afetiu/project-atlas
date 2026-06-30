@@ -1049,6 +1049,135 @@ select.atlas-input {
   overflow-y: auto;
 }
 
+/* ---------------- Insights ---------------- */
+
+.atlas-insights {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.atlas-health {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.atlas-health__grade {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #0a0a0e;
+}
+
+.atlas-health__grade--a { background: #4fd1a1; }
+.atlas-health__grade--b { background: #8fd14f; }
+.atlas-health__grade--c { background: #f0c548; }
+.atlas-health__grade--d { background: #f0a868; }
+.atlas-health__grade--f { background: #ff7a7a; }
+
+.atlas-health__score {
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.atlas-health__label {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.atlas-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.atlas-metric {
+  background: var(--bg-panel);
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.atlas-metric__value {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-metric__label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.atlas-insights__couplers {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px 4px;
+}
+
+.atlas-coupler {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.atlas-coupler:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.atlas-coupler__tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-faint);
+}
+
+.atlas-coupler__name {
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.atlas-insights__findings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 12px;
+}
+
+.atlas-insights__clean {
+  padding: 16px 4px;
+  color: #4fd1a1;
+  font-size: 13px;
+}
+
 .atlas-issue {
   display: flex;
   align-items: flex-start;

@@ -25,6 +25,7 @@ import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
 import { CommandPalette } from './CommandPalette';
 import { DiffOverlay } from './DiffOverlay';
+import { InsightsPanel } from './InsightsPanel';
 import { InspectorPanel } from './InspectorPanel';
 import { Legend } from './Legend';
 import { IssuesPanel } from './IssuesPanel';
@@ -34,7 +35,7 @@ import { Toolbar } from './Toolbar';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
-type RightTab = 'inspector' | 'assistant' | 'issues';
+type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights';
 
 /** View preferences persisted across reloads via the webview state API. */
 interface PersistedView {
@@ -450,6 +451,11 @@ export function App(): JSX.Element {
                 onClick={() => setRightTab('issues')}
                 badge={violations.length}
               />
+              <TabButton
+                label="Insights"
+                active={rightTab === 'insights'}
+                onClick={() => setRightTab('insights')}
+              />
             </div>
             <button
               type="button"
@@ -461,7 +467,9 @@ export function App(): JSX.Element {
               ▸
             </button>
           </div>
-          {rightTab === 'issues' ? (
+          {rightTab === 'insights' ? (
+            <InsightsPanel model={model} onFocusNode={focusNode} />
+          ) : rightTab === 'issues' ? (
             <IssuesPanel
               violations={violations}
               onSelectNode={selectNode}
