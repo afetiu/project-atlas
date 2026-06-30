@@ -819,12 +819,56 @@ select.atlas-input {
   overflow: hidden;
 }
 
+.atlas-modal--templates {
+  width: min(640px, 100%);
+}
+
 .atlas-modal__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
+}
+
+.atlas-templates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.atlas-template {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.atlas-template:hover {
+  background: var(--surface);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.atlas-template__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.atlas-template__desc {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
 }
 
 .atlas-modal__title {

@@ -31,7 +31,9 @@ import { Legend } from './Legend';
 import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
+import { TemplatePicker } from './TemplatePicker';
 import { Toolbar } from './Toolbar';
+import type { ArchitectureTemplate } from '../../shared/templates/templates';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
@@ -59,6 +61,7 @@ export function App(): JSX.Element {
     new Set(persisted.collapsedGroups ?? []),
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [pendingRenameGroupId, setPendingRenameGroupId] = useState<string | null>(null);
   const [componentsCollapsed, setComponentsCollapsed] = useState(persisted.componentsCollapsed ?? false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(persisted.sidebarCollapsed ?? false);
@@ -243,6 +246,16 @@ export function App(): JSX.Element {
     [api, selectOnCanvas],
   );
 
+  const handlePickTemplate = useCallback(
+    (template: ArchitectureTemplate) => {
+      api.loadModel(template.build());
+      setTemplatesOpen(false);
+      setSelection(EMPTY_SELECTION);
+      reactFlow.fitView({ duration: 400, padding: 0.2 });
+    },
+    [api, reactFlow],
+  );
+
   const handleDeleteNode = useCallback(
     (id: string) => {
       api.removeNodes([id]);
@@ -413,6 +426,13 @@ export function App(): JSX.Element {
                 <button
                   type="button"
                   className="atlas-button"
+                  onClick={() => setTemplatesOpen(true)}
+                >
+                  Start from a template
+                </button>
+                <button
+                  type="button"
+                  className="atlas-button"
                   onClick={() => handlePaletteAdd('service')}
                 >
                   Add a component
@@ -520,6 +540,10 @@ export function App(): JSX.Element {
           onConfirm={confirmApply}
           onCancel={() => setPendingApply(null)}
         />
+      )}
+
+      {templatesOpen && (
+        <TemplatePicker onPick={handlePickTemplate} onClose={() => setTemplatesOpen(false)} />
       )}
 
       {paletteOpen && (

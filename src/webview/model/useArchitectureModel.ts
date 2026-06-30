@@ -55,6 +55,7 @@ export interface ArchitectureModelApi {
   updateGroup: (id: string, edits: GroupEdits) => void;
   removeGroups: (ids: string[]) => void;
   setNodeGroup: (nodeId: string, groupId: string | null) => void;
+  loadModel: (model: ArchitectureModel) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -111,6 +112,14 @@ export function useArchitectureModel(): ArchitectureModelApi {
       bumpHistory();
     },
     [schedulePersist, bumpHistory],
+  );
+
+  /** Replace the entire model (e.g. apply a starter template) as one undoable step. */
+  const loadModel = useCallback(
+    (next: ArchitectureModel) => {
+      commit(() => next);
+    },
+    [commit],
   );
 
   /** Apply a transform without recording history (used for live drag frames). */
@@ -395,6 +404,7 @@ export function useArchitectureModel(): ArchitectureModelApi {
     updateGroup,
     removeGroups,
     setNodeGroup,
+    loadModel,
     undo,
     redo,
     canUndo: undoStack.current.length > 0,
