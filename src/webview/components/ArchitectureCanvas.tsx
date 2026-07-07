@@ -117,9 +117,16 @@ export function ArchitectureCanvas({
 
   // Hovering a node highlights it and its direct neighbours, dimming the rest —
   // but only while the graph is small enough for the per-hover recompute to be
-  // cheap (see HOVER_HIGHLIGHT_LIMIT).
+  // cheap (see HOVER_HIGHLIGHT_LIMIT). Clearing is *delayed*: crossing the gap
+  // between two nodes must not strobe every edge through unhover/rehover.
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoverClearTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverEnabled = model.nodes.length <= HOVER_HIGHLIGHT_LIMIT;
+  useEffect(() => {
+    return () => {
+      if (hoverClearTimer.current) clearTimeout(hoverClearTimer.current);
+    };
+  }, []);
 
   // Fit the whole map into view the first time it becomes non-empty (e.g. a
   // detection or extraction loads a large model after mount), so it's never
@@ -129,7 +136,7 @@ export function ArchitectureCanvas({
     if (!fittedRef.current && model.nodes.length > 0) {
       fittedRef.current = true;
       // Defer a frame so the nodes are measured before fitting.
-      setTimeout(() => fitView({ padding: 0.18, duration: 350 }), 60);
+      setTimeout(() => fitView({ padding: 0.1, duration: 350 }), 60);
     } else if (model.nodes.length === 0) {
       fittedRef.current = false;
     }
@@ -206,11 +213,15 @@ export function ArchitectureCanvas({
       const weight = overlay.edgeWeight.get(edge.id);
       const hoverClass = hoveredId ? (incident ? 'atlas-edge-hl' : 'atlas-faded') : undefined;
       const toneClass = tone ? `atlas-edge--${tone}` : undefined;
+      // dim/hl also travel through data: the protocol label renders in a portal,
+      // so classes on the edge element can never reach it.
+      const dim = hoveredId ? !incident : false;
+      const hl = hoveredId ? incident : false;
       return {
         ...edge,
         selected: edge.id === selection.edgeId,
         className: [hoverClass, toneClass].filter(Boolean).join(' ') || undefined,
-        ...(weight ? { data: { ...edge.data, weight } } : {}),
+        data: { ...edge.data, weight, dim, hl },
       };
     });
   }, [baseEdges, selection.edgeId, hoveredId, overlay]);
@@ -277,12 +288,19 @@ export function ArchitectureCanvas({
     (_event: React.MouseEvent, node: FlowNodeType) => {
       // Highlight from components and collapsed contexts, not region backgrounds.
       if (hoverEnabled && !node.id.startsWith(GROUP_ID_PREFIX)) {
+        if (hoverClearTimer.current) {
+          clearTimeout(hoverClearTimer.current);
+          hoverClearTimer.current = null;
+        }
         setHoveredId(node.id);
       }
     },
     [hoverEnabled],
   );
-  const handleNodeMouseLeave = useCallback(() => setHoveredId(null), []);
+  const handleNodeMouseLeave = useCallback(() => {
+    if (hoverClearTimer.current) clearTimeout(hoverClearTimer.current);
+    hoverClearTimer.current = setTimeout(() => setHoveredId(null), 150);
+  }, []);
 
   const handleNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
@@ -377,8 +395,8 @@ export function ArchitectureCanvas({
           className="atlas-minimap"
           pannable
           zoomable
-          maskColor="rgba(10,10,14,0.6)"
-          nodeColor="#3a3a46"
+          maskColor="rgba(8,9,13,0.72)"
+          nodeColor="#4b5166"
         />
         <Controls className="atlas-controls" showInteractive={false} />
       </ReactFlow>

@@ -20,12 +20,14 @@ const TIER: Record<NodeTypeId, number> = {
   externalApi: 3,
 };
 
+// Must match the fixed card size in the webview (`.atlas-node` / CARD_W/H in
+// reactFlowAdapter). One geometry truth prevents cards overflowing districts.
 const NODE_W = 230;
-const NODE_H = 84;
-const COL_GAP = 90;
-const ROW_GAP = 30;
-const DISTRICT_PAD = 46;
-const DISTRICT_GUTTER = 90; // "water" between land masses
+const NODE_H = 64;
+const COL_GAP = 96;
+const ROW_GAP = 44;
+const DISTRICT_PAD = 54;
+const DISTRICT_GUTTER = 110; // "water" between land masses
 const MAX_ROW_WIDTH = 2400;
 const ORIGIN = 80;
 

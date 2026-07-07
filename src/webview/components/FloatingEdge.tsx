@@ -4,7 +4,7 @@
  * smoothstep edges so connections stay clean in any direction.
  */
 
-import { useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -15,7 +15,7 @@ import {
 
 import { getEdgeParams } from '../adapters/getEdgeParams';
 
-export function FloatingEdge({
+function FloatingEdgeComponent({
   id,
   source,
   target,
@@ -41,9 +41,18 @@ export function FloatingEdge({
     targetPosition: targetPos,
   });
 
-  // The coupling lens widens busy "roads".
-  const weight = (data as { weight?: number } | undefined)?.weight;
-  const style = weight ? { strokeWidth: weight + 0.5 } : undefined;
+  // The coupling lens widens busy "roads"; hover dim/highlight travels through
+  // `data` because the label below renders in a portal, outside the edge element.
+  const flags = data as { weight?: number; dim?: boolean; hl?: boolean } | undefined;
+  const style = flags?.weight ? { strokeWidth: flags.weight + 0.5 } : undefined;
+  const labelClass = [
+    'atlas-edge-label',
+    selected ? 'atlas-edge-label--selected' : '',
+    flags?.dim ? 'atlas-edge-label--dim' : '',
+    flags?.hl ? 'atlas-edge-label--hl' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <>
@@ -51,7 +60,7 @@ export function FloatingEdge({
       {label && (
         <EdgeLabelRenderer>
           <div
-            className={`atlas-edge-label${selected ? ' atlas-edge-label--selected' : ''}`}
+            className={labelClass}
             style={{
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             }}
@@ -63,3 +72,5 @@ export function FloatingEdge({
     </>
   );
 }
+
+export const FloatingEdge = memo(FloatingEdgeComponent);

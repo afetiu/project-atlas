@@ -28,11 +28,15 @@ export const ARCHITECTURE_EDGE_TYPE = 'floating';
 export const GROUP_ID_PREFIX = 'group:';
 export const COLLAPSED_ID_PREFIX = 'collapsed:';
 
-// Approximate component card size, used to compute region bounds.
-const NODE_W = 210;
-const NODE_H = 60;
-const PAD_X = 30;
-const PAD_TOP = 46;
+// Component cards render at a *fixed* size (see `.atlas-node` in atlas.css), so
+// region bounds and the map layout can share exact geometry instead of guessing.
+// If the CSS card size changes, change it here and in shared/model/mapLayout.ts.
+export const CARD_W = 230;
+export const CARD_H = 64;
+const NODE_W = CARD_W;
+const NODE_H = CARD_H;
+const PAD_X = 34;
+const PAD_TOP = 48;
 
 export interface ArchitectureNodeData {
   node: ArchitectureNode;
@@ -53,6 +57,9 @@ export interface ArchitectureEdgeData {
   protocol: ArchitectureEdge['protocol'];
   /** Road "traffic" weight (1–3) under the coupling lens. */
   weight?: number;
+  /** Hover state, threaded to the portaled label (classes can't reach it). */
+  dim?: boolean;
+  hl?: boolean;
 }
 
 export type FlowNode = Node<ArchitectureNodeData>;
@@ -191,7 +198,7 @@ export function toFlowEdges(
       target,
       type: ARCHITECTURE_EDGE_TYPE,
       label: getProtocolLabel(edge.protocol),
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: '#5b5b69' },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: '#6a7694' },
       data: { protocol: edge.protocol },
     });
   }
