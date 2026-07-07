@@ -1,34 +1,78 @@
 /*
- * Atlas theme — dark-first, minimal, rounded.
- *
- * Design tokens live in :root so the palette can be retuned in one place.
- * The aesthetic target is Linear + Raycast: low-chroma surfaces, a single
- * restrained accent, soft shadows, generous radius, and quiet motion.
+ * Two themes, one identity: Atlas is a chart, so its palettes are chart
+ * palettes. Dark is the "night chart" — warm charcoal with copper ink.
+ * Light is the "paper chart" — parchment with umber ink. No SaaS blue.
+ * Dark is the default (on :root); light overrides on [data-theme='light'].
  */
-
 :root {
-  --bg: #0c0c10;
-  --bg-elevated: #14151c;
-  --bg-panel: #15161d;
-  --surface: #1d1f28;
-  --surface-hover: #242734;
-  --border: #2c2f3d;
-  --border-strong: #3d4154;
-  --text: #f0f2f8;
-  --text-dim: #aab0c0;
-  --text-faint: #7e8497;
-  --accent: #8aa0ff;
-  --danger: #ff6b6b;
-  /* Edges ("roads") need their own token — they sit on the dark water and must
-     stay clearly visible without shouting. */
-  --edge: #566180;
-  --radius-lg: 14px;
-  --radius-md: 10px;
-  --radius-sm: 7px;
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --shadow-node: 0 3px 14px rgba(0, 0, 0, 0.55);
+  --bg: #131110;
+  --bg-elevated: #1a1713;
+  --bg-panel: #1b1814;
+  --surface: #242019;
+  --surface-hover: #2c2720;
+  --border: #342d23;
+  --border-strong: #483e2f;
+  --text: #f2ece1;
+  --text-dim: #b3a996;
+  --text-faint: #877c68;
+  --accent: #c98e61; /* copper */
+  --accent-ink: #221408; /* ink on a copper fill */
+  --danger: #e06552;
+  /* Edges ("roads") sit on the dark water and must stay clearly visible. */
+  --edge: #7d6c50;
+  /* The canvas "water" the districts rise from. */
+  --water-hi: #1a1712;
+  --water-mid: #131110;
+  --water-lo: #0e0c09;
+  /* Component card faces. */
+  --card-hi: #2b251c;
+  --card-lo: #1e1a14;
+  --card-inset: rgba(255, 238, 214, 0.05);
+  /* Edge protocol labels + tech chips. */
+  --label-bg: #211d16;
+  --label-text: #cfc4ae;
+  --chip-bg: rgba(255, 235, 205, 0.06);
+  --chip-border: rgba(255, 235, 205, 0.09);
+  --chip-text: #b3a68c;
+  --radius-lg: 12px;
+  --radius-md: 9px;
+  --radius-sm: 6px;
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-node: 0 3px 14px rgba(0, 0, 0, 0.5);
+  --scrollbar: #4a4335;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', system-ui, sans-serif;
   --transition: 140ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.atlas-app[data-theme='light'] {
+  --bg: #efe9dc;
+  --bg-elevated: #f6f1e6;
+  --bg-panel: #f3ede0;
+  --surface: #faf6ec;
+  --surface-hover: #ebe3d1;
+  --border: #dcd2bd;
+  --border-strong: #c3b598;
+  --text: #2c251b;
+  --text-dim: #6a5f4c;
+  --text-faint: #988c75;
+  --accent: #9a6b3f; /* umber */
+  --accent-ink: #faf3e7;
+  --danger: #b9452f;
+  --edge: #a3906e;
+  --water-hi: #ede6d4;
+  --water-mid: #e8e0cc;
+  --water-lo: #ddd2ba;
+  --card-hi: #fffdf7;
+  --card-lo: #f5eede;
+  --card-inset: rgba(255, 255, 255, 0.8);
+  --label-bg: #fbf6ea;
+  --label-text: #6a5c44;
+  --chip-bg: rgba(90, 70, 40, 0.07);
+  --chip-border: rgba(90, 70, 40, 0.14);
+  --chip-text: #77694f;
+  --shadow-soft: 0 8px 24px rgba(84, 62, 28, 0.14);
+  --shadow-node: 0 2px 10px rgba(84, 62, 28, 0.15);
+  --scrollbar: #c2b391;
 }
 
 * {
@@ -57,6 +101,11 @@ body {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  /* The theme scope owns text colour and background: anything that merely
+     inherits `color` (e.g. the brand name) must re-resolve inside the themed
+     subtree, not against body's dark-default tokens. */
+  color: var(--text);
+  background: var(--bg);
 }
 
 .atlas-topbar {
@@ -80,7 +129,7 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 4px;
-  background: linear-gradient(135deg, var(--accent), #b69bff);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #3a2412));
   align-self: center;
 }
 
@@ -236,10 +285,10 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   /* Lifted clearly above the district land: brighter top face, inner highlight. */
-  background: linear-gradient(180deg, #232634, #181a23);
+  background: linear-gradient(180deg, var(--card-hi), var(--card-lo));
   box-shadow:
     var(--shadow-node),
-    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+    inset 0 1px 0 var(--card-inset);
   transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
@@ -477,7 +526,7 @@ body {
   /* The "water": a deep, subtly-lit base the districts (land) sit on, so the
      canvas reads as a topological map rather than a blank diagram pane. */
   background:
-    radial-gradient(120% 90% at 50% -10%, #12151d 0%, #0c0e14 55%, #090a0f 100%);
+    radial-gradient(120% 90% at 50% -10%, var(--water-hi) 0%, var(--water-mid) 55%, var(--water-lo) 100%);
 }
 
 .atlas-controls {
@@ -701,7 +750,7 @@ select.atlas-input {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #44444f;
+  background: var(--scrollbar);
   background-clip: padding-box;
 }
 
@@ -735,14 +784,14 @@ select.atlas-input {
 }
 
 .atlas-button--accent {
-  background: linear-gradient(180deg, var(--accent), #6d83f0);
+  background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--accent-ink);
+  font-weight: 550;
 }
 
 .atlas-button--accent:hover {
-  filter: brightness(1.07);
-  background: linear-gradient(180deg, var(--accent), #6d83f0);
+  background: color-mix(in srgb, var(--accent) 88%, #fff);
 }
 
 /* ---------------- Right sidebar (tabs) ---------------- */
@@ -952,8 +1001,8 @@ select.atlas-input {
 .atlas-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(6, 6, 9, 0.6);
-  backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--water-lo) 62%, transparent);
+  backdrop-filter: blur(6px) saturate(0.9);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -968,8 +1017,8 @@ select.atlas-input {
   flex-direction: column;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-soft);
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45), var(--shadow-soft);
   overflow: hidden;
 }
 
@@ -1474,9 +1523,9 @@ select.atlas-input {
   pointer-events: none;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #191b24;
+  background: var(--label-bg);
   border: 1px solid var(--border-strong);
-  color: #c3c9d8;
+  color: var(--label-text);
   font-size: 10.5px;
   font-weight: 500;
   font-family: var(--font);
@@ -1713,6 +1762,30 @@ select.atlas-input {
   stroke-width: 2.2;
 }
 
+/* Animated flow — the roads carry moving traffic. Applied under the Traffic
+   lens and to hover-highlighted connections; dash direction follows the arrow,
+   so you can read data direction at a glance without tracing arrowheads. */
+.react-flow__edge.atlas-edge--flow .react-flow__edge-path {
+  stroke-dasharray: 7 5;
+  animation: atlas-flow 800ms linear infinite;
+}
+
+@keyframes atlas-flow {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.atlas-edge--flow .react-flow__edge-path {
+    animation: none;
+    stroke-dasharray: none;
+  }
+  .atlas-node__live {
+    animation: none;
+  }
+}
+
 .atlas-node__type {
   display: flex;
   align-items: center;
@@ -1727,11 +1800,11 @@ select.atlas-input {
 .atlas-node__tech {
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
   font-size: 10px;
-  color: #9aa2b6;
+  color: var(--chip-text);
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
   max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1924,8 +1997,8 @@ select.atlas-input {
 
 .atlas-lens--active {
   background: var(--accent);
-  color: #0a0a0e;
-  font-weight: 550;
+  color: var(--accent-ink);
+  font-weight: 600;
 }
 
 /* ---------------- Legend ---------------- */
@@ -2013,4 +2086,13 @@ select.atlas-input {
   height: 1px;
   background: var(--border);
   margin: 3px 0;
+}
+
+/* ---------------- Theme toggle ---------------- */
+
+.atlas-theme-toggle {
+  width: 30px;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 1;
 }

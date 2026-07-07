@@ -198,7 +198,7 @@ export function toFlowEdges(
       target,
       type: ARCHITECTURE_EDGE_TYPE,
       label: getProtocolLabel(edge.protocol),
-      markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: '#6a7694' },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 15, height: 15, color: '#8d7c5e' },
       data: { protocol: edge.protocol },
     });
   }

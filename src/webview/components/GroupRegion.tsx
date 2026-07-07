@@ -20,7 +20,7 @@ function GroupRegionComponent({
   return (
     <div
       className={`atlas-group${selected ? ' atlas-group--selected' : ''}`}
-      style={{ ['--group-color' as string]: group.color ?? '#7c93ff' }}
+      style={{ ['--group-color' as string]: group.color ?? '#c89b6c' }}
     >
       <div className="atlas-group__header" title={group.description || group.name}>
         <span className="atlas-group__dot" aria-hidden="true" />

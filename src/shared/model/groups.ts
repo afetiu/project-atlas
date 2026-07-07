@@ -5,13 +5,13 @@
  */
 
 export const GROUP_COLORS = [
-  '#7c93ff',
-  '#4fd1a1',
-  '#f0a868',
-  '#c792ea',
-  '#56c5ff',
-  '#ff8b8b',
-  '#9ad07a',
+  '#c89b6c', // camel
+  '#7fa98c', // sage
+  '#c57f6d', // terracotta
+  '#a98bb8', // dusty violet
+  '#6fa8a0', // sea glass
+  '#d9a253', // ochre
+  '#9aa78a', // olive
 ] as const;
 
 export function groupColorForIndex(index: number): string {

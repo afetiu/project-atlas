@@ -20,7 +20,7 @@ function CollapsedGroupNodeComponent({
   return (
     <div
       className={`atlas-collapsed${selected ? ' atlas-collapsed--selected' : ''}`}
-      style={{ ['--group-color' as string]: group.color ?? '#7c93ff' }}
+      style={{ ['--group-color' as string]: group.color ?? '#c89b6c' }}
     >
       <Handle type="target" position={Position.Left} className="atlas-handle" />
       <span className="atlas-collapsed__dot" aria-hidden="true" />

@@ -63,6 +63,8 @@ interface ArchitectureCanvasProps {
   typeFilter: ReadonlySet<NodeTypeId>;
   /** Active data-overlay lens (recolours the map); 'structure' is the plain map. */
   overlay: LensOverlay;
+  /** UI theme — the graticule/minimap take colours as props, not CSS. */
+  theme: 'dark' | 'light';
 }
 
 const nodeTypes = {
@@ -100,6 +102,7 @@ export function ArchitectureCanvas({
   onToggleCollapse,
   typeFilter,
   overlay,
+  theme,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition, fitView } = useReactFlow();
   const {
@@ -217,10 +220,12 @@ export function ArchitectureCanvas({
       // so classes on the edge element can never reach it.
       const dim = hoveredId ? !incident : false;
       const hl = hoveredId ? incident : false;
+      // Traffic-lens roads and hover-highlighted connections carry animated flow.
+      const flowClass = weight !== undefined || hl ? 'atlas-edge--flow' : undefined;
       return {
         ...edge,
         selected: edge.id === selection.edgeId,
-        className: [hoverClass, toneClass].filter(Boolean).join(' ') || undefined,
+        className: [hoverClass, toneClass, flowClass].filter(Boolean).join(' ') || undefined,
         data: { ...edge.data, weight, dim, hl },
       };
     });
@@ -383,20 +388,25 @@ export function ArchitectureCanvas({
       >
         {/* A faint graticule (like a sea-chart grid) over the water base set in
             CSS, so the canvas reads as a map surface rather than a blank pane. */}
-        <Background variant={BackgroundVariant.Lines} gap={64} size={1} color="rgba(120,140,170,0.05)" />
+        <Background
+          variant={BackgroundVariant.Lines}
+          gap={64}
+          size={1}
+          color={theme === 'light' ? 'rgba(120,100,60,0.09)' : 'rgba(200,170,120,0.05)'}
+        />
         <Background
           id="fine"
           variant={BackgroundVariant.Dots}
           gap={32}
           size={1}
-          color="rgba(120,140,170,0.06)"
+          color={theme === 'light' ? 'rgba(120,100,60,0.12)' : 'rgba(200,170,120,0.07)'}
         />
         <MiniMap
           className="atlas-minimap"
           pannable
           zoomable
-          maskColor="rgba(8,9,13,0.72)"
-          nodeColor="#4b5166"
+          maskColor={theme === 'light' ? 'rgba(228,218,196,0.75)' : 'rgba(12,10,8,0.72)'}
+          nodeColor={theme === 'light' ? '#c9ba9d' : '#5c5140'}
         />
         <Controls className="atlas-controls" showInteractive={false} />
       </ReactFlow>

@@ -43,6 +43,8 @@ const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null }
 type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights';
 
 /** View preferences persisted across reloads via the webview state API. */
+type Theme = 'dark' | 'light';
+
 interface PersistedView {
   rightTab?: RightTab;
   collapsedGroups?: string[];
@@ -50,6 +52,7 @@ interface PersistedView {
   sidebarCollapsed?: boolean;
   typeFilter?: string[];
   lens?: MapLens;
+  theme?: Theme;
 }
 
 export function App(): JSX.Element {
@@ -74,6 +77,7 @@ export function App(): JSX.Element {
     new Set(persisted.typeFilter as NodeTypeId[] | undefined),
   );
   const [lens, setLens] = useState<MapLens>(persisted.lens ?? 'structure');
+  const [theme, setTheme] = useState<Theme>(persisted.theme ?? 'dark');
   // Persist view preferences so a reload restores collapsed panels and filters.
   useEffect(() => {
     setViewState<PersistedView>({
@@ -83,8 +87,9 @@ export function App(): JSX.Element {
       sidebarCollapsed,
       typeFilter: [...typeFilter],
       lens,
+      theme,
     });
-  }, [rightTab, collapsedGroups, componentsCollapsed, sidebarCollapsed, typeFilter, lens]);
+  }, [rightTab, collapsedGroups, componentsCollapsed, sidebarCollapsed, typeFilter, lens, theme]);
 
   const overlay = useMemo(
     () => computeLens(model, lens, { driftedNodeIds: ai.driftedNodeIds }),
@@ -319,7 +324,7 @@ export function App(): JSX.Element {
   );
 
   return (
-    <div className="atlas-app">
+    <div className="atlas-app" data-theme={theme}>
       <header className="atlas-topbar">
         <div className="atlas-brand">
           <span className="atlas-brand__mark" aria-hidden="true" />
@@ -345,6 +350,15 @@ export function App(): JSX.Element {
             title="Search components and run commands (Ctrl/Cmd+K)"
           >
             <span aria-hidden="true">⌘K</span> Search
+          </button>
+          <button
+            type="button"
+            className="atlas-button atlas-button--small atlas-theme-toggle"
+            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            title={theme === 'dark' ? 'Paper chart (light)' : 'Night chart (dark)'}
+          >
+            {theme === 'dark' ? '☀' : '☾'}
           </button>
           <span className="atlas-topbar__counts">
             {model.nodes.length} nodes · {model.edges.length} connections
@@ -408,6 +422,7 @@ export function App(): JSX.Element {
             onToggleCollapse={toggleCollapse}
             typeFilter={typeFilter}
             overlay={overlay}
+            theme={theme}
           />
           {model.nodes.length > 0 && <LensSwitcher lens={lens} onChange={setLens} />}
           <Legend model={model} activeFilter={typeFilter} onToggleFilter={toggleTypeFilter} />

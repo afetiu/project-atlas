@@ -29,12 +29,14 @@ export interface NodeTypeDefinition {
 }
 
 export const NODE_TYPES: Record<NodeTypeId, NodeTypeDefinition> = {
-  service: { id: 'service', label: 'Service', accent: '#7c93ff', icon: 'service' },
-  database: { id: 'database', label: 'Database', accent: '#4fd1a1', icon: 'database' },
-  queue: { id: 'queue', label: 'Queue', accent: '#f0a868', icon: 'queue' },
-  externalApi: { id: 'externalApi', label: 'External API', accent: '#c792ea', icon: 'externalApi' },
-  frontend: { id: 'frontend', label: 'Frontend', accent: '#56c5ff', icon: 'frontend' },
-  cache: { id: 'cache', label: 'Cache', accent: '#ff8b8b', icon: 'cache' },
+  // Earthy, chart-like categorical palette — warm and muted so the map reads
+  // like a hand-inked chart in both the night (dark) and paper (light) themes.
+  service: { id: 'service', label: 'Service', accent: '#c89b6c', icon: 'service' },
+  database: { id: 'database', label: 'Database', accent: '#7fa98c', icon: 'database' },
+  queue: { id: 'queue', label: 'Queue', accent: '#d9a253', icon: 'queue' },
+  externalApi: { id: 'externalApi', label: 'External API', accent: '#a98bb8', icon: 'externalApi' },
+  frontend: { id: 'frontend', label: 'Frontend', accent: '#6fa8a0', icon: 'frontend' },
+  cache: { id: 'cache', label: 'Cache', accent: '#c57f6d', icon: 'cache' },
 };
 
 /** Ordered list of definitions, convenient for rendering menus. */
