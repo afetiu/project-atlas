@@ -134,6 +134,51 @@ export function applyLayout(model: ArchitectureModel, layoutText: string): Archi
   };
 }
 
+/**
+ * A model as a plain object with inline positions — for embedding inside
+ * another YAML document (e.g. a plan file), where merge-cleanliness of the
+ * sidecar split doesn't apply.
+ */
+export function modelToPlain(model: ArchitectureModel): Record<string, unknown> {
+  return {
+    version: model.version ?? CURRENT_MODEL_VERSION,
+    nodes: sortById(model.nodes).map((node) => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      description: node.description,
+      position: { x: round(node.position.x), y: round(node.position.y) },
+      ...(node.groupId ? { groupId: node.groupId } : {}),
+      ...(hasMapping(node.mapping) ? { mapping: compactMapping(node.mapping!) } : {}),
+      ...(node.binding?.server ? { binding: compactBinding(node.binding) } : {}),
+    })),
+    edges: sortById(model.edges).map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      protocol: edge.protocol,
+    })),
+    groups: sortById(model.groups).map((group) => ({
+      id: group.id,
+      name: group.name,
+      ...(group.description ? { description: group.description } : {}),
+      ...(group.color ? { color: group.color } : {}),
+    })),
+  };
+}
+
+/** Normalize a plain parsed object (as produced by modelToPlain) into a model. */
+export function modelFromPlain(raw: unknown): ArchitectureModel {
+  const record = (raw ?? {}) as Record<string, unknown>;
+  const version = typeof record.version === 'number' ? record.version : CURRENT_MODEL_VERSION;
+  return {
+    version,
+    nodes: Array.isArray(record.nodes) ? record.nodes.map(normalizeNode) : [],
+    edges: Array.isArray(record.edges) ? record.edges.map(normalizeEdge) : [],
+    groups: Array.isArray(record.groups) ? record.groups.map(normalizeGroup) : [],
+  };
+}
+
 function sortById<T extends { id: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.id.localeCompare(b.id));
 }

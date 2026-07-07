@@ -42,6 +42,15 @@ import { extractArchitecture } from '../../shared/extract/staticExtract';
 import { mergeExtraction } from '../../shared/extract/merge';
 import { matchDocsToComponents, type DocMeta } from '../../shared/docs/catalog';
 import { excerptOf, extractHeadings, extractTitle } from '../../shared/docs/markdown';
+import {
+  assessPlan,
+  deserializePlan,
+  planFileName,
+  renderAdr,
+  serializePlan,
+  type Plan,
+  type PlanSummary,
+} from '../../shared/plans/plan';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -166,6 +175,18 @@ export class ArchitecturePanel {
         if (typeof message.path === 'string') {
           await this.runDocsRead(message.path);
         }
+        break;
+      case 'plan:list':
+        await this.pushPlanEntries();
+        break;
+      case 'plan:save':
+        await this.runPlanSave(message.file, message.plan);
+        break;
+      case 'plan:load':
+        await this.runPlanLoad(message.file);
+        break;
+      case 'plan:adr':
+        await this.runPlanAdr(message.file, message.plan);
         break;
       case 'history:list': {
         const entries = await getFileHistory(this.deps.cwd, 'atlas.yaml');
@@ -345,6 +366,120 @@ export class ArchitecturePanel {
       this.reportAiError(error);
     } finally {
       this.end();
+    }
+  }
+
+  /* ------------------------------- plans -------------------------------- */
+
+  private plansDirUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.deps.workspaceFolder.uri, 'atlas', 'plans');
+  }
+
+  /** Resolve a plan file name safely inside atlas/plans (basename only). */
+  private planUri(file: string): vscode.Uri | null {
+    const base = file.split('/').pop() ?? '';
+    if (!/^[a-z0-9][a-z0-9-]*\.yaml$/i.test(base)) {
+      return null;
+    }
+    return vscode.Uri.joinPath(this.plansDirUri(), base);
+  }
+
+  private async pushPlanEntries(): Promise<void> {
+    const plans: PlanSummary[] = [];
+    try {
+      const entries = await vscode.workspace.fs.readDirectory(this.plansDirUri());
+      for (const [name, kind] of entries) {
+        if (kind !== vscode.FileType.File || !name.endsWith('.yaml')) {
+          continue;
+        }
+        try {
+          const bytes = await vscode.workspace.fs.readFile(
+            vscode.Uri.joinPath(this.plansDirUri(), name),
+          );
+          const plan = deserializePlan(new TextDecoder().decode(bytes));
+          plans.push({ file: name, name: plan.name, status: plan.status, createdAt: plan.createdAt });
+        } catch {
+          // unreadable plan — skip
+        }
+      }
+    } catch {
+      // no plans directory yet — empty list
+    }
+    plans.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    this.post({ type: 'plan:entries', plans });
+  }
+
+  private async runPlanSave(file: string | undefined, plan: Plan): Promise<void> {
+    const target = this.planUri(file ?? planFileName(plan.name));
+    if (!target) {
+      this.post({ type: 'model:error', message: 'Invalid plan file name.' });
+      return;
+    }
+    try {
+      await vscode.workspace.fs.createDirectory(this.plansDirUri());
+      await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(plan)));
+      const base = target.path.split('/').pop()!;
+      this.deps.logger.info(`Plan saved: atlas/plans/${base} (${plan.status}).`);
+      this.post({ type: 'plan:saved', file: base });
+      await this.pushPlanEntries();
+    } catch (error) {
+      this.deps.logger.error(`Plan save failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not save the plan.' });
+    }
+  }
+
+  private async runPlanLoad(file: string): Promise<void> {
+    const target = this.planUri(file);
+    if (!target) {
+      return;
+    }
+    try {
+      const bytes = await vscode.workspace.fs.readFile(target);
+      const plan = deserializePlan(new TextDecoder().decode(bytes));
+      this.post({ type: 'plan:loaded', file: target.path.split('/').pop()!, plan });
+    } catch (error) {
+      this.deps.logger.error(`Plan load failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not open that plan.' });
+    }
+  }
+
+  /** Write the plan's decision record into docs/adr/ and mark the plan decided. */
+  private async runPlanAdr(file: string, plan: Plan): Promise<void> {
+    const target = this.planUri(file);
+    if (!target) {
+      return;
+    }
+    try {
+      // Persist the plan as decided first, so the file and the record agree
+      // even if a debounced save is still in flight.
+      await vscode.workspace.fs.createDirectory(this.plansDirUri());
+      const { model: base } = await this.deps.fileService.read();
+      const assessment = assessPlan(base, plan.target);
+
+      const adrDir = vscode.Uri.joinPath(this.deps.workspaceFolder.uri, 'docs', 'adr');
+      await vscode.workspace.fs.createDirectory(adrDir);
+      let next = 1;
+      for (const [name] of await vscode.workspace.fs.readDirectory(adrDir)) {
+        const m = name.match(/^adr-(\d+)/i) ?? name.match(/^(\d+)-/);
+        if (m) {
+          next = Math.max(next, Number(m[1]) + 1);
+        }
+      }
+      const adrName = `adr-${String(next).padStart(3, '0')}-${planFileName(plan.name).replace(/\.yaml$/, '')}.md`;
+      const adrUri = vscode.Uri.joinPath(adrDir, adrName);
+      const markdown = renderAdr({ number: next, plan, base, assessment });
+      await vscode.workspace.fs.writeFile(adrUri, new TextEncoder().encode(markdown));
+
+      const decided: Plan = { ...plan, status: 'decided' };
+      await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(decided)));
+
+      const path = `docs/adr/${adrName}`;
+      this.deps.logger.info(`Decision record written: ${path}.`);
+      this.post({ type: 'plan:adrSaved', file: target.path.split('/').pop()!, path });
+      await this.pushPlanEntries();
+    } catch (error) {
+      this.deps.logger.error(`ADR generation failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not write the decision record.' });
     }
   }
 

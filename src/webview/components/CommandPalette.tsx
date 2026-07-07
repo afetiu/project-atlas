@@ -12,6 +12,7 @@ import {
   type NodeTypeId,
 } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
+import type { PlanSummary } from '../../shared/plans/plan';
 import { useOverlay } from '../hooks/useOverlay';
 
 interface CommandItem {
@@ -23,6 +24,7 @@ interface CommandItem {
 
 interface CommandPaletteProps {
   model: ArchitectureModel;
+  plans: PlanSummary[];
   onClose: () => void;
   onFocusNode: (id: string) => void;
   onAddNode: (type: NodeTypeId) => void;
@@ -30,10 +32,13 @@ interface CommandPaletteProps {
   onMapFromCode: () => void;
   onArrange: () => void;
   onTimelapse: () => void;
+  onNewPlan: () => void;
+  onOpenPlan: (file: string) => void;
 }
 
 export function CommandPalette({
   model,
+  plans,
   onClose,
   onFocusNode,
   onAddNode,
@@ -41,6 +46,8 @@ export function CommandPalette({
   onMapFromCode,
   onArrange,
   onTimelapse,
+  onNewPlan,
+  onOpenPlan,
 }: CommandPaletteProps): JSX.Element {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -62,6 +69,13 @@ export function CommandPalette({
       { id: 'detect', label: 'Detect with AI', hint: 'AI', run: onDetect },
       { id: 'arrange', label: 'Arrange as map', hint: 'Layout', run: onArrange },
       { id: 'timelapse', label: 'Time-lapse', hint: 'History', run: onTimelapse },
+      { id: 'new-plan', label: 'New plan', hint: 'Plan', run: onNewPlan },
+      ...plans.map((plan) => ({
+        id: `plan-${plan.file}`,
+        label: `Open plan: ${plan.name}`,
+        hint: plan.status === 'draft' ? 'Plan · draft' : `Plan · ${plan.status}`,
+        run: () => onOpenPlan(plan.file),
+      })),
     ];
     const nodes: CommandItem[] = model.nodes.map((node) => ({
       id: `node-${node.id}`,
@@ -73,7 +87,7 @@ export function CommandPalette({
     const all = [...nodes, ...actions];
     const q = query.trim().toLowerCase();
     return q ? all.filter((item) => item.label.toLowerCase().includes(q)) : all;
-  }, [model.nodes, query, onAddNode, onDetect, onMapFromCode, onFocusNode, onArrange, onTimelapse]);
+  }, [model.nodes, plans, query, onAddNode, onDetect, onMapFromCode, onFocusNode, onArrange, onTimelapse, onNewPlan, onOpenPlan]);
 
   // Keep the active index in range as the list shrinks.
   useEffect(() => setActive(0), [query]);

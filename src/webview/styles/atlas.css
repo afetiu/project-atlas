@@ -2505,3 +2505,211 @@ select.atlas-input {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ---------------- Plan mode ---------------- */
+/* The propose → assess → decide → build workflow. The pill marks the sandbox;
+   the panel carries the live assessment (health delta, blast radius, findings). */
+
+.atlas-mode-pill--plan {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--bg-elevated) 84%, var(--accent));
+  font-weight: 600;
+}
+
+.atlas-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.atlas-plan__status {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 2px;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
+
+.atlas-plan__status--decided {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border-strong));
+  color: var(--accent);
+}
+
+.atlas-plan__status--applied {
+  border-color: color-mix(in srgb, #4fd1a1 55%, var(--border-strong));
+  color: #4fd1a1;
+}
+
+.atlas-plan__rationale {
+  resize: vertical;
+  min-height: 58px;
+  line-height: 1.45;
+}
+
+.atlas-plan__hint {
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.atlas-plan__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Health delta — the plan's one-line verdict. */
+.atlas-plan__health {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-inset, transparent);
+}
+
+.atlas-plan__health-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.atlas-plan__health-value {
+  font-size: 14px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-plan__health-arrow {
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+.atlas-plan__health-note {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.atlas-plan__health--up {
+  border-color: color-mix(in srgb, #4fd1a1 45%, var(--border-strong));
+}
+.atlas-plan__health--up .atlas-plan__health-note {
+  color: #4fd1a1;
+}
+
+.atlas-plan__health--down {
+  border-color: color-mix(in srgb, #f0a868 50%, var(--border-strong));
+}
+.atlas-plan__health--down .atlas-plan__health-note {
+  color: #f0a868;
+}
+
+.atlas-plan__changes {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.atlas-plan__quiet {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Blast-radius chips — every dependent the change ripples into, clickable. */
+.atlas-plan__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.atlas-plan__chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #f0a868 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-elevated) 90%, #f0a868);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.atlas-plan__chip:hover {
+  border-color: #f0a868;
+}
+
+.atlas-plan__findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.atlas-plan__finding {
+  font-size: 12px;
+  line-height: 1.45;
+  padding-left: 14px;
+  position: relative;
+}
+
+.atlas-plan__finding::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.atlas-plan__finding--resolves::before {
+  background: #4fd1a1;
+}
+
+.atlas-plan__finding--introduces::before {
+  background: #f0a868;
+}
+
+.atlas-plan__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.atlas-plan__actions .atlas-button {
+  flex: 1 1 0;
+}
+
+.atlas-plan__adr {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #4fd1a1 45%, var(--border-strong));
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.atlas-plan__adr:hover {
+  color: var(--text);
+}

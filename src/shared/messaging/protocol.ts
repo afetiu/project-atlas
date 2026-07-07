@@ -12,6 +12,7 @@
 
 import type { ChatTurn } from '../ai/chat';
 import type { DocMeta } from '../docs/catalog';
+import type { Plan, PlanSummary } from '../plans/plan';
 import type { ArchitectureModel } from '../model/types';
 import type { ValidationIssue } from '../serialization/validation';
 
@@ -157,6 +158,32 @@ export interface DocsContentMessage {
   error?: string;
 }
 
+/** Saved plans under atlas/plans/. */
+export interface PlanEntriesMessage {
+  type: 'plan:entries';
+  plans: PlanSummary[];
+}
+
+/** One plan's full content, for opening it in plan mode. */
+export interface PlanLoadedMessage {
+  type: 'plan:loaded';
+  file: string;
+  plan: Plan;
+}
+
+/** A plan was written to disk. */
+export interface PlanSavedMessage {
+  type: 'plan:saved';
+  file: string;
+}
+
+/** The plan's decision record was written (and the plan marked decided). */
+export interface PlanAdrSavedMessage {
+  type: 'plan:adrSaved';
+  file: string;
+  path: string;
+}
+
 /** Commit history of atlas.yaml, for the time-lapse scrubber (newest first). */
 export interface HistoryEntriesMessage {
   type: 'history:entries';
@@ -180,6 +207,10 @@ export type HostToWebviewMessage =
   | McpToolResultMessage
   | DocsListMessage
   | DocsContentMessage
+  | PlanEntriesMessage
+  | PlanLoadedMessage
+  | PlanSavedMessage
+  | PlanAdrSavedMessage
   | HistoryEntriesMessage;
 
 /* ------------------------------------------------------------------ */
@@ -272,6 +303,35 @@ export interface DocsReadMessage {
   path: string;
 }
 
+/** List saved plans. */
+export interface PlanListMessage {
+  type: 'plan:list';
+}
+
+/** Save (create or update) a plan file. */
+export interface PlanSaveMessage {
+  type: 'plan:save';
+  /** Existing file to overwrite; omitted to create from the plan's name. */
+  file?: string;
+  plan: Plan;
+}
+
+/** Load one plan. */
+export interface PlanLoadMessage {
+  type: 'plan:load';
+  file: string;
+}
+
+/**
+ * Generate the plan's ADR into docs/adr/ and mark the plan decided. Carries the
+ * plan itself so the record reflects the editor state, not a stale disk copy.
+ */
+export interface PlanAdrMessage {
+  type: 'plan:adr';
+  file: string;
+  plan: Plan;
+}
+
 /** List atlas.yaml's commit history for time-lapse. */
 export interface HistoryListMessage {
   type: 'history:list';
@@ -303,6 +363,10 @@ export type WebviewToHostMessage =
   | McpCallToolMessage
   | DocsScanMessage
   | DocsReadMessage
+  | PlanListMessage
+  | PlanSaveMessage
+  | PlanLoadMessage
+  | PlanAdrMessage
   | HistoryListMessage
   | HistoryLoadMessage
   | HistoryExitMessage;

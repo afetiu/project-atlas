@@ -16,7 +16,6 @@ import ReactFlow, {
   type Connection,
   type EdgeChange,
   type NodeChange,
-  type OnSelectionChangeParams,
   useReactFlow,
 } from 'reactflow';
 
@@ -293,6 +292,56 @@ export function ArchitectureCanvas({
     });
   }, [baseEdges, selection.edgeId, hoveredId, overlay, traceEdges, focusMembers]);
 
+  // Selection is controlled and owned entirely by the click handlers below.
+  // React Flow's own selection plumbing ('select' changes / onSelectionChange)
+  // is unreliable for a controlled surface: the mousedown re-render (selection
+  // paints immediately) can retarget the composed click event at the pane,
+  // whose click handler would then clear the selection it just made. The pane
+  // handler therefore only clears when the interaction's *mousedown* actually
+  // landed on the background, which distinguishes a genuine background click
+  // from that phantom.
+  const mousedownOnElement = useRef(false);
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      mousedownOnElement.current = !!target?.closest?.('.react-flow__node, .react-flow__edge');
+    };
+    window.addEventListener('mousedown', onMouseDown, true);
+    return () => window.removeEventListener('mousedown', onMouseDown, true);
+  }, []);
+
+  const selectElement = useCallback(
+    (flowNodeId: string | null, edgeId: string | null) => {
+      if (edgeId) {
+        onSelectionChange({ nodeId: null, edgeId, groupId: null });
+        return;
+      }
+      if (flowNodeId) {
+        const groupId = groupIdOf(flowNodeId);
+        onSelectionChange(
+          groupId
+            ? { nodeId: null, edgeId: null, groupId }
+            : { nodeId: flowNodeId, edgeId: null, groupId: null },
+        );
+      }
+    },
+    [onSelectionChange],
+  );
+
+  const handlePaneClick = useCallback(() => {
+    if (mousedownOnElement.current) {
+      return; // a node/edge interaction whose click got retargeted at the pane
+    }
+    onSelectionChange({ nodeId: null, edgeId: null, groupId: null });
+  }, [onSelectionChange]);
+
+  const handleEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: { id: string }) => {
+      selectElement(null, edge.id);
+    },
+    [selectElement],
+  );
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const moves: Array<{ id: string; position: { x: number; y: number } }> = [];
@@ -336,21 +385,6 @@ export function ArchitectureCanvas({
     [addEdge],
   );
 
-  const handleSelectionChange = useCallback(
-    ({ nodes: selNodes, edges: selEdges }: OnSelectionChangeParams) => {
-      const componentNode = selNodes.find((n) => groupIdOf(n.id) === null);
-      const groupNode = selNodes.find((n) => groupIdOf(n.id) !== null);
-      if (componentNode) {
-        onSelectionChange({ nodeId: componentNode.id, edgeId: null, groupId: null });
-      } else if (groupNode) {
-        onSelectionChange({ nodeId: null, edgeId: null, groupId: groupIdOf(groupNode.id) });
-      } else {
-        onSelectionChange({ nodeId: null, edgeId: selEdges[0]?.id ?? null, groupId: null });
-      }
-    },
-    [onSelectionChange],
-  );
-
   const handleNodeMouseEnter = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
       // Highlight from components and collapsed contexts, not region backgrounds.
@@ -386,18 +420,28 @@ export function ArchitectureCanvas({
     [onOpenFile, onFocusGroup],
   );
 
-  // Shift-click a second component to trace the route from the selected one.
+  // Click selects; shift-click a second component traces the route from the
+  // selected one instead.
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: FlowNodeType) => {
       if (event.shiftKey && groupIdOf(node.id) === null) {
         onRequestTrace(node.id);
+        return;
       }
+      selectElement(node.id, null);
     },
-    [onRequestTrace],
+    [onRequestTrace, selectElement],
   );
 
-  // Drag a component into a region to join that bounded context (or out to leave).
-  const handleNodeDragStart = useCallback(() => beginInteraction(), [beginInteraction]);
+  // Drag a component into a region to join that bounded context (or out to
+  // leave). Starting a drag also selects, matching direct-manipulation habit.
+  const handleNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: FlowNodeType) => {
+      beginInteraction();
+      selectElement(node.id, null);
+    },
+    [beginInteraction, selectElement],
+  );
 
   const handleNodeDragStop = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
@@ -454,7 +498,8 @@ export function ArchitectureCanvas({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
-        onSelectionChange={handleSelectionChange}
+        onPaneClick={handlePaneClick}
+        onEdgeClick={handleEdgeClick}
         onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeDragStart={handleNodeDragStart}

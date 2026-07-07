@@ -67,6 +67,14 @@ export interface ArchitectureModelApi {
   canRedo: boolean;
   beginInteraction: () => void;
   endInteraction: () => void;
+  /**
+   * Sandbox (plan mode): edits flow through the same mutators but are *not*
+   * persisted to atlas.yaml; the real model is kept as `baseModel` for diffing.
+   */
+  sandboxed: boolean;
+  baseModel: ArchitectureModel | null;
+  enterSandbox: (target: ArchitectureModel) => void;
+  exitSandbox: () => void;
 }
 
 const HISTORY_LIMIT = 100;
@@ -82,6 +90,13 @@ export function useArchitectureModel(): ArchitectureModelApi {
 
   const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sandbox (plan mode): while active, edits stay local and the authoritative
+  // model is parked in `baseModel` so a plan can be assessed against it.
+  const [sandboxed, setSandboxed] = useState(false);
+  const sandboxedRef = useRef(false);
+  const [baseModel, setBaseModel] = useState<ArchitectureModel | null>(null);
+  const baseModelRef = useRef<ArchitectureModel | null>(null);
+
   // Undo/redo history of full model snapshots. A version counter forces
   // re-render so `canUndo`/`canRedo` (read from the refs) stay accurate.
   const undoStack = useRef<ArchitectureModel[]>([]);
@@ -90,6 +105,11 @@ export function useArchitectureModel(): ArchitectureModelApi {
   const bumpHistory = useCallback(() => setHistoryVersion((v) => v + 1), []);
 
   const schedulePersist = useCallback((next: ArchitectureModel) => {
+    // Sandboxed edits never reach atlas.yaml — plan persistence is the plan
+    // owner's job (it watches `model` and saves to the plan file instead).
+    if (sandboxedRef.current) {
+      return;
+    }
     if (persistTimer.current) {
       clearTimeout(persistTimer.current);
     }
@@ -203,6 +223,14 @@ export function useArchitectureModel(): ArchitectureModelApi {
     const unsubscribe = onHostMessage((message) => {
       switch (message.type) {
         case 'model:loaded':
+          // While sandboxed, the authoritative model only refreshes the diff
+          // baseline — a disk reload must not clobber the plan being drafted.
+          if (sandboxedRef.current) {
+            baseModelRef.current = message.model;
+            setBaseModel(message.model);
+            setError(null);
+            break;
+          }
           // Replace local state without persisting — this came *from* disk.
           // Cancel any pending autosave so a stale local edit can't clobber the
           // authoritative version we just received.
@@ -234,6 +262,49 @@ export function useArchitectureModel(): ArchitectureModelApi {
       }
     };
   }, []);
+
+  /* ---- Sandbox (plan mode) ---- */
+
+  const enterSandbox = useCallback(
+    (target: ArchitectureModel) => {
+      if (sandboxedRef.current) {
+        return;
+      }
+      // Flush any pending real edit *before* suspending persistence, so
+      // entering a plan can never swallow a change to atlas.yaml.
+      if (persistTimer.current) {
+        clearTimeout(persistTimer.current);
+        persistTimer.current = null;
+        postToHost({ type: 'model:changed', model: modelRef.current });
+      }
+      baseModelRef.current = modelRef.current;
+      setBaseModel(modelRef.current);
+      sandboxedRef.current = true;
+      setSandboxed(true);
+      modelRef.current = target;
+      setModel(target);
+      undoStack.current = [];
+      redoStack.current = [];
+      bumpHistory();
+    },
+    [bumpHistory],
+  );
+
+  const exitSandbox = useCallback(() => {
+    if (!sandboxedRef.current) {
+      return;
+    }
+    const base = baseModelRef.current ?? modelRef.current;
+    sandboxedRef.current = false;
+    setSandboxed(false);
+    baseModelRef.current = null;
+    setBaseModel(null);
+    modelRef.current = base;
+    setModel(base);
+    undoStack.current = [];
+    redoStack.current = [];
+    bumpHistory();
+  }, [bumpHistory]);
 
   /* ---- Mutators ---- */
 
@@ -431,5 +502,9 @@ export function useArchitectureModel(): ArchitectureModelApi {
     canRedo: redoStack.current.length > 0,
     beginInteraction,
     endInteraction,
+    sandboxed,
+    baseModel,
+    enterSandbox,
+    exitSandbox,
   };
 }

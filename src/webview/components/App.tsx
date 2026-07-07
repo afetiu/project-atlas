@@ -9,8 +9,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReactFlow } from 'reactflow';
 
 import { diffModels, summarizeDelta } from '../../shared/model/diff';
-import { computeLens, type MapLens } from '../../shared/model/lenses';
+import {
+  computeLens,
+  type LensOverlay,
+  type MapLens,
+  type OverlayTone,
+} from '../../shared/model/lenses';
 import { findPath, type TracedPath } from '../../shared/model/path';
+import { assessPlan } from '../../shared/plans/plan';
 import { groupBounds } from '../adapters/reactFlowAdapter';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
@@ -24,6 +30,7 @@ import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
 import { useDocs } from '../model/useDocs';
 import { useMcp } from '../model/useMcp';
+import { usePlans } from '../model/usePlans';
 import { getViewState, onHostMessage, postToHost, setViewState } from '../vscodeApi';
 import { ApplyConfirm } from './ApplyConfirm';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
@@ -38,6 +45,7 @@ import { Legend } from './Legend';
 import { LensSwitcher } from './LensSwitcher';
 import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
+import { PlanPanel } from './PlanPanel';
 import { StatusBanner } from './StatusBanner';
 import { TemplatePicker } from './TemplatePicker';
 import { TimeLapse, type HistoryEntry } from './TimeLapse';
@@ -46,7 +54,7 @@ import type { ArchitectureTemplate } from '../../shared/templates/templates';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
-type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights' | 'docs';
+type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights' | 'docs' | 'plan';
 
 /** View preferences persisted across reloads via the webview state API. */
 type Theme = 'dark' | 'light';
@@ -66,6 +74,7 @@ export function App(): JSX.Element {
   const ai = useAiSession();
   const mcp = useMcp();
   const docs = useDocs();
+  const plans = usePlans(api);
   const reactFlow = useReactFlow();
   const { model, error } = api;
 
@@ -102,9 +111,13 @@ export function App(): JSX.Element {
   }, []);
 
   const startTimelapse = useCallback(() => {
+    // Time-lapse and plan mode both repaint the whole map; one at a time.
+    if (plans.active) {
+      return;
+    }
     timelapsePending.current = true;
     postToHost({ type: 'history:list' });
-  }, []);
+  }, [plans.active]);
 
   const scrubTimelapse = useCallback((index: number) => {
     setTimelapse((current) => {
@@ -127,7 +140,8 @@ export function App(): JSX.Element {
   // Persist view preferences so a reload restores collapsed panels and filters.
   useEffect(() => {
     setViewState<PersistedView>({
-      rightTab,
+      // The Plan tab only exists while a plan is open, so it never persists.
+      rightTab: rightTab === 'plan' ? 'inspector' : rightTab,
       collapsedGroups: [...collapsedGroups],
       componentsCollapsed,
       sidebarCollapsed,
@@ -141,6 +155,49 @@ export function App(): JSX.Element {
     () => computeLens(model, lens, { driftedNodeIds: ai.driftedNodeIds }),
     [model, lens, ai.driftedNodeIds],
   );
+
+  /* ---- Plan mode: propose → assess → decide → build ---- */
+
+  const planActive = plans.active !== null && api.sandboxed;
+
+  // Live assessment of the sandboxed proposal against the real model.
+  const planAssessment = useMemo(
+    () => (planActive && api.baseModel ? assessPlan(api.baseModel, model) : null),
+    [planActive, api.baseModel, model],
+  );
+
+  // In plan mode the map becomes its own lens: changed components glow copper,
+  // the blast radius glows amber, and everything untouched recedes.
+  const planOverlay = useMemo<LensOverlay | null>(() => {
+    if (!planAssessment) {
+      return null;
+    }
+    const nodeTone = new Map<string, OverlayTone>();
+    for (const node of model.nodes) {
+      nodeTone.set(node.id, 'muted');
+    }
+    for (const id of planAssessment.blastNodeIds) {
+      nodeTone.set(id, 'warn');
+    }
+    for (const id of planAssessment.changedNodeIds) {
+      nodeTone.set(id, 'info');
+    }
+    const edgeTone = new Map<string, OverlayTone>();
+    for (const edge of [...planAssessment.delta.addedEdges, ...planAssessment.delta.updatedEdges.map((u) => u.after)]) {
+      edgeTone.set(edge.id, 'hot');
+    }
+    return { nodeTone, edgeTone, edgeWeight: new Map() };
+  }, [planAssessment, model.nodes]);
+
+  // Entering plan mode opens the Plan tab; leaving it returns to the inspector.
+  useEffect(() => {
+    if (planActive) {
+      setRightTab('plan');
+      setSidebarCollapsed(false);
+    } else {
+      setRightTab((tab) => (tab === 'plan' ? 'inspector' : tab));
+    }
+  }, [planActive]);
 
   const toggleTypeFilter = useCallback((type: NodeTypeId) => {
     setTypeFilter((prev) => {
@@ -157,6 +214,8 @@ export function App(): JSX.Element {
     model: ArchitectureModel;
     instruction?: string;
     changes: string[];
+    /** Extra bookkeeping once the user confirms (e.g. mark a plan applied). */
+    onConfirmed?: () => void;
   } | null>(null);
   const spawnCount = useRef(0);
 
@@ -175,10 +234,24 @@ export function App(): JSX.Element {
 
   const confirmApply = useCallback(() => {
     if (pendingApply) {
+      // Leave plan mode (if any) before the host pushes the persisted target,
+      // so the authoritative reload lands on the real map, not the sandbox.
+      pendingApply.onConfirmed?.();
       ai.applyTarget(pendingApply.model, pendingApply.instruction);
       setPendingApply(null);
     }
   }, [pendingApply, ai]);
+
+  // "Build it" from plan mode: apply the plan's target through the same
+  // confirm-then-generate pipeline as any other change.
+  const buildPlan = useCallback(() => {
+    if (!plans.active || !api.baseModel) {
+      return;
+    }
+    const changes = summarizeDelta(diffModels(api.baseModel, model));
+    const instruction = plans.active.plan.rationale.trim() || plans.active.plan.name;
+    setPendingApply({ model, instruction, changes, onConfirmed: plans.finalizeApply });
+  }, [plans, api.baseModel, model]);
 
   const toggleCollapse = useCallback((groupId: string) => {
     setCollapsedGroups((prev) => {
@@ -325,6 +398,10 @@ export function App(): JSX.Element {
           focusGroup(null);
           return;
         }
+        if (planActive) {
+          plans.closePlan();
+          return;
+        }
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
@@ -340,7 +417,7 @@ export function App(): JSX.Element {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup, timelapse, exitTimelapse]);
+  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup, timelapse, exitTimelapse, planActive, plans]);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
@@ -444,6 +521,16 @@ export function App(): JSX.Element {
           onCancel={ai.cancel}
         />
         <div className="atlas-topbar__meta">
+          {!planActive && model.nodes.length > 0 && (
+            <button
+              type="button"
+              className="atlas-button atlas-button--small"
+              onClick={plans.startPlan}
+              title="Draft a change on the map without touching atlas.yaml"
+            >
+              ◈ Plan
+            </button>
+          )}
           <button
             type="button"
             className="atlas-button atlas-button--small atlas-topbar__search"
@@ -522,14 +609,25 @@ export function App(): JSX.Element {
             collapsedGroups={collapsedGroups}
             onToggleCollapse={toggleCollapse}
             typeFilter={typeFilter}
-            overlay={overlay}
+            overlay={planActive && planOverlay ? planOverlay : overlay}
             theme={theme}
             focusedGroupId={focusedGroupId}
             onFocusGroup={focusGroup}
             tracedPath={tracedPath}
             onRequestTrace={requestTrace}
           />
-          {model.nodes.length > 0 && <LensSwitcher lens={lens} onChange={setLens} />}
+          {model.nodes.length > 0 && !planActive && <LensSwitcher lens={lens} onChange={setLens} />}
+          {planActive && plans.active && (
+            <button
+              type="button"
+              className="atlas-mode-pill atlas-mode-pill--plan"
+              onClick={plans.closePlan}
+              title="Close plan (Esc) — the draft is saved under atlas/plans/"
+            >
+              ◈ Plan: {plans.active.plan.name}
+              <span className="atlas-mode-pill__x">✕</span>
+            </button>
+          )}
           {focusedGroupId && (
             <button
               type="button"
@@ -631,6 +729,13 @@ export function App(): JSX.Element {
         <aside className="atlas-sidebar">
           <div className="atlas-tabs">
             <div className="atlas-tabs__list" role="tablist" aria-label="Inspector panels">
+              {planActive && (
+                <TabButton
+                  label="Plan"
+                  active={rightTab === 'plan'}
+                  onClick={() => setRightTab('plan')}
+                />
+              )}
               <TabButton
                 label="Inspector"
                 active={rightTab === 'inspector'}
@@ -668,7 +773,21 @@ export function App(): JSX.Element {
               ▸
             </button>
           </div>
-          {rightTab === 'docs' ? (
+          {rightTab === 'plan' && planActive && plans.active ? (
+            <PlanPanel
+              file={plans.active.file}
+              plan={plans.active.plan}
+              assessment={planAssessment}
+              adrPath={plans.adrPath}
+              nameOf={(id) => model.nodes.find((n) => n.id === id)?.name ?? id}
+              onRename={plans.rename}
+              onRationale={plans.setRationale}
+              onGenerateAdr={plans.generateAdr}
+              onBuild={buildPlan}
+              onFocusNode={focusNode}
+              onOpenFile={openFile}
+            />
+          ) : rightTab === 'docs' ? (
             <DocsPanel docs={docs} model={model} onFocusNode={focusNode} />
           ) : rightTab === 'insights' ? (
             <InsightsPanel model={model} onFocusNode={focusNode} />
@@ -736,6 +855,7 @@ export function App(): JSX.Element {
       {paletteOpen && (
         <CommandPalette
           model={model}
+          plans={plans.plans}
           onClose={() => setPaletteOpen(false)}
           onFocusNode={(id) => {
             focusNode(id);
@@ -760,6 +880,14 @@ export function App(): JSX.Element {
           }}
           onTimelapse={() => {
             startTimelapse();
+            setPaletteOpen(false);
+          }}
+          onNewPlan={() => {
+            plans.startPlan();
+            setPaletteOpen(false);
+          }}
+          onOpenPlan={(file) => {
+            plans.openPlan(file);
             setPaletteOpen(false);
           }}
         />
