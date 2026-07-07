@@ -39,6 +39,8 @@ import { resolveWithinRoot } from '../workspace/paths';
 import { McpBridge, type McpServerRegistry } from '../mcp/McpBridge';
 import { extractArchitecture } from '../../shared/extract/staticExtract';
 import { mergeExtraction } from '../../shared/extract/merge';
+import { matchDocsToComponents, type DocMeta } from '../../shared/docs/catalog';
+import { excerptOf, extractHeadings, extractTitle } from '../../shared/docs/markdown';
 import { buildWebviewHtml } from './webviewHtml';
 
 export interface PanelDependencies {
@@ -156,6 +158,64 @@ export class ArchitecturePanel {
       case 'mcp:callTool':
         await this.runMcpCallTool(message.nodeId, message.server, message.tool, message.args);
         break;
+      case 'docs:scan':
+        await this.runDocsScan();
+        break;
+      case 'docs:read':
+        if (typeof message.path === 'string') {
+          await this.runDocsRead(message.path);
+        }
+        break;
+    }
+  }
+
+  /** Catalogue the workspace's Markdown docs for the Docs panel. */
+  private async runDocsScan(): Promise<void> {
+    try {
+      const uris = await vscode.workspace.findFiles(
+        '**/*.md',
+        '**/{node_modules,dist,dist-test,out,build,coverage,.git}/**',
+        400,
+      );
+      const docs: DocMeta[] = [];
+      for (const uri of uris) {
+        const path = relative(this.deps.cwd, uri.fsPath).replace(/\\/g, '/');
+        try {
+          const bytes = await vscode.workspace.fs.readFile(uri);
+          if (bytes.byteLength > 512 * 1024) {
+            continue; // not documentation-sized
+          }
+          const text = new TextDecoder().decode(bytes);
+          const fallback = path.split('/').pop()!.replace(/\.md$/i, '');
+          docs.push({
+            path,
+            title: extractTitle(text, fallback),
+            excerpt: excerptOf(text),
+            headings: extractHeadings(text).slice(0, 40),
+          });
+        } catch {
+          // unreadable file — skip it
+        }
+      }
+      const { model } = await this.deps.fileService.read();
+      this.post({ type: 'docs:list', docs: matchDocsToComponents(docs, model) });
+    } catch (error) {
+      this.deps.logger.error(`Docs scan failed: ${String(error)}`);
+      this.post({ type: 'docs:list', docs: [] });
+    }
+  }
+
+  private async runDocsRead(path: string): Promise<void> {
+    const safe = resolveWithinRoot(this.deps.cwd, path);
+    if (!safe || !/\.md$/i.test(safe)) {
+      this.post({ type: 'docs:content', path, error: 'Not a readable document.' });
+      return;
+    }
+    try {
+      const bytes = await vscode.workspace.fs.readFile(vscode.Uri.file(safe));
+      this.post({ type: 'docs:content', path, text: new TextDecoder().decode(bytes) });
+    } catch (error) {
+      this.post({ type: 'docs:content', path, error: messageOf(error) });
     }
   }
 

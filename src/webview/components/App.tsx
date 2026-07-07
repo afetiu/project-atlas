@@ -22,6 +22,7 @@ import {
 } from '../../shared/rules/rules';
 import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
+import { useDocs } from '../model/useDocs';
 import { useMcp } from '../model/useMcp';
 import { getViewState, postToHost, setViewState } from '../vscodeApi';
 import { ApplyConfirm } from './ApplyConfirm';
@@ -29,6 +30,8 @@ import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
 import { CommandPalette } from './CommandPalette';
 import { DiffOverlay } from './DiffOverlay';
+import { DocReader } from './DocReader';
+import { DocsPanel } from './DocsPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { InspectorPanel } from './InspectorPanel';
 import { Legend } from './Legend';
@@ -42,7 +45,7 @@ import type { ArchitectureTemplate } from '../../shared/templates/templates';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
-type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights';
+type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights' | 'docs';
 
 /** View preferences persisted across reloads via the webview state API. */
 type Theme = 'dark' | 'light';
@@ -61,6 +64,7 @@ export function App(): JSX.Element {
   const api = useArchitectureModel();
   const ai = useAiSession();
   const mcp = useMcp();
+  const docs = useDocs();
   const reactFlow = useReactFlow();
   const { model, error } = api;
 
@@ -598,6 +602,11 @@ export function App(): JSX.Element {
                 active={rightTab === 'insights'}
                 onClick={() => setRightTab('insights')}
               />
+              <TabButton
+                label="Docs"
+                active={rightTab === 'docs'}
+                onClick={() => setRightTab('docs')}
+              />
             </div>
             <button
               type="button"
@@ -609,7 +618,9 @@ export function App(): JSX.Element {
               ▸
             </button>
           </div>
-          {rightTab === 'insights' ? (
+          {rightTab === 'docs' ? (
+            <DocsPanel docs={docs} model={model} onFocusNode={focusNode} />
+          ) : rightTab === 'insights' ? (
             <InsightsPanel model={model} onFocusNode={focusNode} />
           ) : rightTab === 'issues' ? (
             <IssuesPanel
@@ -634,6 +645,7 @@ export function App(): JSX.Element {
               onOpenFile={openFile}
               autoFocusGroupName={!!selectedGroup && selectedGroup.id === pendingRenameGroupId}
               mcp={mcp}
+              docs={docs}
             />
           ) : (
             <AssistantPanel
@@ -668,6 +680,8 @@ export function App(): JSX.Element {
       {templatesOpen && (
         <TemplatePicker onPick={handlePickTemplate} onClose={() => setTemplatesOpen(false)} />
       )}
+
+      {docs.openPath && <DocReader docs={docs} onOpenFile={openFile} />}
 
       {paletteOpen && (
         <CommandPalette

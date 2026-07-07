@@ -16,6 +16,7 @@ import type {
 } from '../../shared/model/types';
 import type { GroupEdits, NodeEdits } from '../model/useArchitectureModel';
 import type { McpState } from '../model/useMcp';
+import type { DocsState } from '../model/useDocs';
 
 interface InspectorPanelProps {
   selectedNode: ArchitectureNode | null;
@@ -35,6 +36,8 @@ interface InspectorPanelProps {
   autoFocusGroupName?: boolean;
   /** Live MCP state, for operating a bound component from the inspector. */
   mcp: McpState;
+  /** Docs catalog, for the component's documentation section. */
+  docs: DocsState;
 }
 
 export function InspectorPanel(props: InspectorPanelProps): JSX.Element {
@@ -64,7 +67,9 @@ function NodeInspector({
   onCreateContext,
   onOpenFile,
   mcp,
+  docs,
 }: { node: ArchitectureNode } & InspectorPanelProps): JSX.Element {
+  const nodeDocs = docs.docs.filter((d) => d.componentId === node.id);
   return (
     <div className="atlas-inspector__content">
       <Header title="Node" subtitle={node.id} />
@@ -140,6 +145,24 @@ function NodeInspector({
             <span className="atlas-source__path">{node.mapping.path}</span>
             <span className="atlas-source__open">Open ↗</span>
           </button>
+        </Field>
+      )}
+
+      {nodeDocs.length > 0 && (
+        <Field label="Documentation">
+          <div className="atlas-inspector-docs">
+            {nodeDocs.map((doc) => (
+              <button
+                key={doc.path}
+                type="button"
+                className="atlas-inspector-docs__item"
+                title={doc.path}
+                onClick={() => docs.openDoc(doc.path)}
+              >
+                ☰ {doc.title}
+              </button>
+            ))}
+          </div>
         </Field>
       )}
 

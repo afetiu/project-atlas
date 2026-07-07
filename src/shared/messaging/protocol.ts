@@ -11,6 +11,7 @@
  */
 
 import type { ChatTurn } from '../ai/chat';
+import type { DocMeta } from '../docs/catalog';
 import type { ArchitectureModel } from '../model/types';
 import type { ValidationIssue } from '../serialization/validation';
 
@@ -142,6 +143,20 @@ export interface McpToolResultMessage {
   text: string;
 }
 
+/** The workspace's Markdown documentation catalog. */
+export interface DocsListMessage {
+  type: 'docs:list';
+  docs: DocMeta[];
+}
+
+/** Full text of one document, for the reader. */
+export interface DocsContentMessage {
+  type: 'docs:content';
+  path: string;
+  text?: string;
+  error?: string;
+}
+
 export type HostToWebviewMessage =
   | ModelLoadedMessage
   | ModelErrorMessage
@@ -156,7 +171,9 @@ export type HostToWebviewMessage =
   | ApplyDoneMessage
   | ApplyRevertedMessage
   | McpToolsMessage
-  | McpToolResultMessage;
+  | McpToolResultMessage
+  | DocsListMessage
+  | DocsContentMessage;
 
 /* ------------------------------------------------------------------ */
 /* Webview → extension host                                           */
@@ -237,6 +254,17 @@ export interface McpCallToolMessage {
   args?: Record<string, unknown>;
 }
 
+/** Scan the workspace for Markdown documentation. */
+export interface DocsScanMessage {
+  type: 'docs:scan';
+}
+
+/** Read one document's full text. */
+export interface DocsReadMessage {
+  type: 'docs:read';
+  path: string;
+}
+
 export type WebviewToHostMessage =
   | WebviewReadyMessage
   | ModelChangedMessage
@@ -249,4 +277,6 @@ export type WebviewToHostMessage =
   | ConfigureAuthMessage
   | OpenFileMessage
   | McpListToolsMessage
-  | McpCallToolMessage;
+  | McpCallToolMessage
+  | DocsScanMessage
+  | DocsReadMessage;
