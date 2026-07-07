@@ -100,3 +100,43 @@ export async function getWorkingTreeDiff(cwd: string, touchedFiles: string[] = [
     return ''; // not a git repo, or git unavailable
   }
 }
+
+export interface FileHistoryEntry {
+  sha: string;
+  /** ISO-ish committer date. */
+  date: string;
+  summary: string;
+}
+
+/** Commit history of one file, newest first. */
+export async function getFileHistory(cwd: string, file: string): Promise<FileHistoryEntry[]> {
+  try {
+    const { stdout } = await run(
+      'git',
+      ['log', '--format=%H%x1f%ci%x1f%s', '--follow', '--', file],
+      { cwd, ...BIG_BUFFER },
+    );
+    return stdout
+      .split('\n')
+      .filter((line) => line.includes('\x1f'))
+      .map((line) => {
+        const [sha, date, summary] = line.split('\x1f');
+        return { sha, date, summary: summary ?? '' };
+      });
+  } catch {
+    return [];
+  }
+}
+
+/** A file's content at a specific commit, or null when absent there. */
+export async function getFileAtCommit(cwd: string, sha: string, file: string): Promise<string | null> {
+  if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
+    return null; // shas only — never let arbitrary strings reach git show
+  }
+  try {
+    const { stdout } = await run('git', ['show', `${sha}:${file}`], { cwd, ...BIG_BUFFER });
+    return stdout;
+  } catch {
+    return null;
+  }
+}

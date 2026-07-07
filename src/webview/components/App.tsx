@@ -24,7 +24,7 @@ import { useAiSession } from '../model/useAiSession';
 import { useArchitectureModel } from '../model/useArchitectureModel';
 import { useDocs } from '../model/useDocs';
 import { useMcp } from '../model/useMcp';
-import { getViewState, postToHost, setViewState } from '../vscodeApi';
+import { getViewState, onHostMessage, postToHost, setViewState } from '../vscodeApi';
 import { ApplyConfirm } from './ApplyConfirm';
 import { ArchitectureCanvas, type Selection } from './ArchitectureCanvas';
 import { AssistantPanel } from './AssistantPanel';
@@ -40,6 +40,7 @@ import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { StatusBanner } from './StatusBanner';
 import { TemplatePicker } from './TemplatePicker';
+import { TimeLapse, type HistoryEntry } from './TimeLapse';
 import { Toolbar } from './Toolbar';
 import type { ArchitectureTemplate } from '../../shared/templates/templates';
 
@@ -86,6 +87,43 @@ export function App(): JSX.Element {
   const [theme, setTheme] = useState<Theme>(persisted.theme ?? 'dark');
   const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
   const [tracedPath, setTracedPath] = useState<TracedPath | null>(null);
+  const [timelapse, setTimelapse] = useState<{ entries: HistoryEntry[]; index: number } | null>(null);
+  const timelapsePending = useRef(false);
+  // Time-lapse: entries arrive after 'history:list'; ignore when not requested.
+  useEffect(() => {
+    return onHostMessage((message) => {
+      if (message.type === 'history:entries' && timelapsePending.current) {
+        timelapsePending.current = false;
+        if (message.entries.length > 0) {
+          setTimelapse({ entries: message.entries, index: 0 });
+        }
+      }
+    });
+  }, []);
+
+  const startTimelapse = useCallback(() => {
+    timelapsePending.current = true;
+    postToHost({ type: 'history:list' });
+  }, []);
+
+  const scrubTimelapse = useCallback((index: number) => {
+    setTimelapse((current) => {
+      if (!current) {
+        return current;
+      }
+      const entry = current.entries[index];
+      if (entry) {
+        postToHost({ type: 'history:load', sha: entry.sha });
+      }
+      return { ...current, index };
+    });
+  }, []);
+
+  const exitTimelapse = useCallback(() => {
+    setTimelapse(null);
+    postToHost({ type: 'history:exit' });
+  }, []);
+
   // Persist view preferences so a reload restores collapsed panels and filters.
   useEffect(() => {
     setViewState<PersistedView>({
@@ -275,6 +313,10 @@ export function App(): JSX.Element {
         return;
       }
       if (event.key === 'Escape' && !paletteOpen && !templatesOpen && !pendingApply) {
+        if (timelapse) {
+          exitTimelapse();
+          return;
+        }
         if (tracedPath) {
           setTracedPath(null);
           return;
@@ -298,7 +340,7 @@ export function App(): JSX.Element {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup]);
+  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup, timelapse, exitTimelapse]);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
@@ -498,6 +540,14 @@ export function App(): JSX.Element {
               ◎ Focus: {model.groups.find((g) => g.id === focusedGroupId)?.name ?? focusedGroupId}
               <span className="atlas-mode-pill__x">✕</span>
             </button>
+          )}
+          {timelapse && (
+            <TimeLapse
+              entries={timelapse.entries}
+              index={timelapse.index}
+              onScrub={scrubTimelapse}
+              onClose={exitTimelapse}
+            />
           )}
           {tracedPath && (
             <button
@@ -707,6 +757,10 @@ export function App(): JSX.Element {
             api.arrangeAsMap();
             setPaletteOpen(false);
             reactFlow.fitView({ duration: 400, padding: 0.2 });
+          }}
+          onTimelapse={() => {
+            startTimelapse();
+            setPaletteOpen(false);
           }}
         />
       )}

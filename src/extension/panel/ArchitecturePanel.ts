@@ -27,6 +27,7 @@ import type {
 import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/diff';
 import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
+import { applyLayout, deserializeModel } from '../../shared/serialization/yaml';
 import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
@@ -34,7 +35,7 @@ import { BaselineStore } from '../workspace/BaselineStore';
 import { AtlasFileService } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
 import { computeDrift } from '../workspace/drift';
-import { getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
+import { getFileAtCommit, getFileHistory, getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
 import { resolveWithinRoot } from '../workspace/paths';
 import { McpBridge, type McpServerRegistry } from '../mcp/McpBridge';
 import { extractArchitecture } from '../../shared/extract/staticExtract';
@@ -166,6 +167,37 @@ export class ArchitecturePanel {
           await this.runDocsRead(message.path);
         }
         break;
+      case 'history:list': {
+        const entries = await getFileHistory(this.deps.cwd, 'atlas.yaml');
+        this.post({ type: 'history:entries', entries: entries.slice(0, 200) });
+        break;
+      }
+      case 'history:load':
+        if (typeof message.sha === 'string') {
+          await this.runHistoryLoad(message.sha);
+        }
+        break;
+      case 'history:exit':
+        await this.pushModelToWebview(true);
+        break;
+    }
+  }
+
+  /** Show the map as it was at a commit. View-only: the webview shields edits. */
+  private async runHistoryLoad(sha: string): Promise<void> {
+    try {
+      const text = await getFileAtCommit(this.deps.cwd, sha, 'atlas.yaml');
+      if (text === null) {
+        this.post({ type: 'model:error', message: 'That commit has no atlas.yaml.' });
+        return;
+      }
+      let model = deserializeModel(text);
+      const layout = await getFileAtCommit(this.deps.cwd, sha, 'atlas.layout.yaml');
+      model = applyLayout(model, layout ?? '');
+      this.post({ type: 'model:loaded', model });
+    } catch (error) {
+      this.deps.logger.error(`Time-lapse load failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Could not load that snapshot.' });
     }
   }
 

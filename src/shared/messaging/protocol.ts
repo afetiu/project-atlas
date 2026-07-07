@@ -157,6 +157,12 @@ export interface DocsContentMessage {
   error?: string;
 }
 
+/** Commit history of atlas.yaml, for the time-lapse scrubber (newest first). */
+export interface HistoryEntriesMessage {
+  type: 'history:entries';
+  entries: Array<{ sha: string; date: string; summary: string }>;
+}
+
 export type HostToWebviewMessage =
   | ModelLoadedMessage
   | ModelErrorMessage
@@ -173,7 +179,8 @@ export type HostToWebviewMessage =
   | McpToolsMessage
   | McpToolResultMessage
   | DocsListMessage
-  | DocsContentMessage;
+  | DocsContentMessage
+  | HistoryEntriesMessage;
 
 /* ------------------------------------------------------------------ */
 /* Webview → extension host                                           */
@@ -265,6 +272,22 @@ export interface DocsReadMessage {
   path: string;
 }
 
+/** List atlas.yaml's commit history for time-lapse. */
+export interface HistoryListMessage {
+  type: 'history:list';
+}
+
+/** Load the map as it was at a commit (view-only snapshot). */
+export interface HistoryLoadMessage {
+  type: 'history:load';
+  sha: string;
+}
+
+/** Leave time-lapse: reload the current map from disk. */
+export interface HistoryExitMessage {
+  type: 'history:exit';
+}
+
 export type WebviewToHostMessage =
   | WebviewReadyMessage
   | ModelChangedMessage
@@ -279,4 +302,7 @@ export type WebviewToHostMessage =
   | McpListToolsMessage
   | McpCallToolMessage
   | DocsScanMessage
-  | DocsReadMessage;
+  | DocsReadMessage
+  | HistoryListMessage
+  | HistoryLoadMessage
+  | HistoryExitMessage;
