@@ -22,6 +22,7 @@ import ReactFlow, {
 
 import { isNodeTypeId, type NodeTypeId } from '../../shared/model/nodeTypes';
 import type { LensOverlay } from '../../shared/model/lenses';
+import type { TracedPath } from '../../shared/model/path';
 import type { RuleSeverity } from '../../shared/rules/rules';
 import {
   ARCHITECTURE_COLLAPSED_TYPE,
@@ -65,6 +66,13 @@ interface ArchitectureCanvasProps {
   overlay: LensOverlay;
   /** UI theme — the graticule/minimap take colours as props, not CSS. */
   theme: 'dark' | 'light';
+  /** Focus mode: only this district stays lit; everything else recedes. */
+  focusedGroupId: string | null;
+  onFocusGroup: (groupId: string | null) => void;
+  /** Path tracing: the lit route between two components. */
+  tracedPath: TracedPath | null;
+  /** Shift-click on a component requests a trace from the current selection. */
+  onRequestTrace: (targetId: string) => void;
 }
 
 const nodeTypes = {
@@ -103,6 +111,10 @@ export function ArchitectureCanvas({
   typeFilter,
   overlay,
   theme,
+  focusedGroupId,
+  onFocusGroup,
+  tracedPath,
+  onRequestTrace,
 }: ArchitectureCanvasProps): JSX.Element {
   const { screenToFlowPosition, fitView } = useReactFlow();
   const {
@@ -159,6 +171,24 @@ export function ArchitectureCanvas({
     return set;
   }, [hoveredId, baseEdges]);
 
+  // Trace/focus emphasis: while either is active, hover-dimming yields to it.
+  const traceNodes = useMemo(
+    () => (tracedPath ? new Set(tracedPath.nodeIds) : null),
+    [tracedPath],
+  );
+  const traceEdges = useMemo(
+    () => (tracedPath ? new Set(tracedPath.edgeIds) : null),
+    [tracedPath],
+  );
+  const focusMembers = useMemo(() => {
+    if (!focusedGroupId) {
+      return null;
+    }
+    return new Set(
+      model.nodes.filter((n) => n.groupId === focusedGroupId).map((n) => n.id),
+    );
+  }, [model.nodes, focusedGroupId]);
+
   // Derive React Flow state from the model, applying the current selection.
   // Group regions are listed first so they render behind the components.
   const filtering = typeFilter.size > 0;
@@ -167,6 +197,14 @@ export function ArchitectureCanvas({
     // node's type isn't selected. Type-less nodes (collapsed contexts) only
     // respond to the hover dimming.
     const faded = (id: string, type?: NodeTypeId) => {
+      // Priority: an active trace or focus owns the emphasis; hover only
+      // applies when neither is active, so the modes never fight each other.
+      if (traceNodes) {
+        return traceNodes.has(id) ? undefined : 'atlas-faded';
+      }
+      if (focusMembers) {
+        return focusMembers.has(id) ? undefined : 'atlas-faded';
+      }
       const dimByHover = neighborIds ? !neighborIds.has(id) : false;
       const dimByType = filtering && (type === undefined || !typeFilter.has(type));
       return dimByHover || dimByType ? 'atlas-faded' : undefined;
@@ -174,6 +212,10 @@ export function ArchitectureCanvas({
     const groupNodes = toFlowGroups(model, collapsedGroups).map((group) => ({
       ...group,
       selected: group.id === `${GROUP_ID_PREFIX}${selection.groupId}`,
+      className:
+        focusedGroupId && group.id !== `${GROUP_ID_PREFIX}${focusedGroupId}`
+          ? 'atlas-faded'
+          : undefined,
     }));
     const collapsedNodes = toCollapsedGroupNodes(model, collapsedGroups).map((node) => ({
       ...node,
@@ -205,6 +247,9 @@ export function ArchitectureCanvas({
     filtering,
     typeFilter,
     overlay,
+    traceNodes,
+    focusMembers,
+    focusedGroupId,
   ]);
 
   const edges = useMemo(() => {
@@ -214,12 +259,29 @@ export function ArchitectureCanvas({
         : true;
       const tone = overlay.edgeTone.get(edge.id);
       const weight = overlay.edgeWeight.get(edge.id);
-      const hoverClass = hoveredId ? (incident ? 'atlas-edge-hl' : 'atlas-faded') : undefined;
+      const onPath = traceEdges ? traceEdges.has(edge.id) : undefined;
+      const inFocus = focusMembers
+        ? focusMembers.has(edge.source) && focusMembers.has(edge.target)
+        : undefined;
+      const hoverClass =
+        onPath !== undefined
+          ? onPath
+            ? 'atlas-edge-hl'
+            : 'atlas-faded'
+          : inFocus !== undefined
+            ? inFocus
+              ? undefined
+              : 'atlas-faded'
+            : hoveredId
+              ? incident
+                ? 'atlas-edge-hl'
+                : 'atlas-faded'
+              : undefined;
       const toneClass = tone ? `atlas-edge--${tone}` : undefined;
       // dim/hl also travel through data: the protocol label renders in a portal,
       // so classes on the edge element can never reach it.
-      const dim = hoveredId ? !incident : false;
-      const hl = hoveredId ? incident : false;
+      const dim = onPath !== undefined ? !onPath : inFocus !== undefined ? !inFocus : hoveredId ? !incident : false;
+      const hl = onPath !== undefined ? onPath : hoveredId ? incident : false;
       // Traffic-lens roads and hover-highlighted connections carry animated flow.
       const flowClass = weight !== undefined || hl ? 'atlas-edge--flow' : undefined;
       return {
@@ -229,7 +291,7 @@ export function ArchitectureCanvas({
         data: { ...edge.data, weight, dim, hl },
       };
     });
-  }, [baseEdges, selection.edgeId, hoveredId, overlay]);
+  }, [baseEdges, selection.edgeId, hoveredId, overlay, traceEdges, focusMembers]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -309,12 +371,29 @@ export function ArchitectureCanvas({
 
   const handleNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: FlowNodeType) => {
+      // Double-tapping a district enters focus mode; double-tapping a mapped
+      // component opens its source.
+      const groupId = groupIdOf(node.id);
+      if (groupId) {
+        onFocusGroup(groupId);
+        return;
+      }
       const path = (node.data as { node?: { mapping?: { path?: string } } })?.node?.mapping?.path;
       if (path) {
         onOpenFile(path);
       }
     },
-    [onOpenFile],
+    [onOpenFile, onFocusGroup],
+  );
+
+  // Shift-click a second component to trace the route from the selected one.
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: FlowNodeType) => {
+      if (event.shiftKey && groupIdOf(node.id) === null) {
+        onRequestTrace(node.id);
+      }
+    },
+    [onRequestTrace],
   );
 
   // Drag a component into a region to join that bounded context (or out to leave).
@@ -376,6 +455,7 @@ export function ArchitectureCanvas({
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
         onSelectionChange={handleSelectionChange}
+        onNodeClick={handleNodeClick}
         onNodeDoubleClick={handleNodeDoubleClick}
         onNodeDragStart={handleNodeDragStart}
         onNodeDragStop={handleNodeDragStop}
@@ -406,7 +486,16 @@ export function ArchitectureCanvas({
           pannable
           zoomable
           maskColor={theme === 'light' ? 'rgba(228,218,196,0.75)' : 'rgba(12,10,8,0.72)'}
-          nodeColor={theme === 'light' ? '#c9ba9d' : '#5c5140'}
+          nodeColor={(n) => {
+            // Districts paint the minimap like a world-map inset; components
+            // read as small settlements on top.
+            if (n.type === ARCHITECTURE_GROUP_TYPE) {
+              const g = (n.data as { group?: { color?: string } })?.group;
+              return g?.color ?? '#c89b6c';
+            }
+            return theme === 'light' ? '#b3a385' : '#6b5f49';
+          }}
+          nodeStrokeWidth={2}
         />
         <Controls className="atlas-controls" showInteractive={false} />
       </ReactFlow>

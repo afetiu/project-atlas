@@ -2096,3 +2096,33 @@ select.atlas-input {
   font-size: 13px;
   line-height: 1;
 }
+
+/* ---------------- Mode pills (focus / trace) ---------------- */
+
+.atlas-mode-pill {
+  position: absolute;
+  top: 52px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-elevated) 92%, var(--accent));
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+}
+
+.atlas-mode-pill__x {
+  color: var(--text-faint);
+}
+
+.atlas-mode-pill:hover .atlas-mode-pill__x {
+  color: var(--text);
+}

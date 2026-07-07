@@ -10,6 +10,8 @@ import { useReactFlow } from 'reactflow';
 
 import { diffModels, summarizeDelta } from '../../shared/model/diff';
 import { computeLens, type MapLens } from '../../shared/model/lenses';
+import { findPath, type TracedPath } from '../../shared/model/path';
+import { groupBounds } from '../adapters/reactFlowAdapter';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
 import {
@@ -78,6 +80,8 @@ export function App(): JSX.Element {
   );
   const [lens, setLens] = useState<MapLens>(persisted.lens ?? 'structure');
   const [theme, setTheme] = useState<Theme>(persisted.theme ?? 'dark');
+  const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
+  const [tracedPath, setTracedPath] = useState<TracedPath | null>(null);
   // Persist view preferences so a reload restores collapsed panels and filters.
   useEffect(() => {
     setViewState<PersistedView>({
@@ -196,6 +200,42 @@ export function App(): JSX.Element {
   const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
   const mapFromCode = useCallback(() => postToHost({ type: 'code:map' }), []);
 
+  // Focus mode: sail into one district; Esc (or the pill) sails back out.
+  const focusGroup = useCallback(
+    (groupId: string | null) => {
+      setFocusedGroupId(groupId);
+      setTracedPath(null);
+      if (groupId) {
+        const bounds = groupBounds(model).get(groupId);
+        if (bounds) {
+          reactFlow.fitBounds(bounds, { padding: 0.25, duration: 450 });
+        }
+      } else {
+        reactFlow.fitView({ padding: 0.1, duration: 450 });
+      }
+    },
+    [model, reactFlow],
+  );
+
+  // Path tracing: shift-click a second component to light the route from the
+  // selected one. Uses the previous selection when React Flow has already
+  // re-selected the shift-clicked node by the time the click handler runs.
+  const prevSelectedNode = useRef<string | null>(null);
+  const requestTrace = useCallback(
+    (targetId: string) => {
+      const source =
+        selection.nodeId && selection.nodeId !== targetId
+          ? selection.nodeId
+          : prevSelectedNode.current;
+      if (!source || source === targetId) {
+        return;
+      }
+      setTracedPath(findPath(model, source, targetId));
+      setFocusedGroupId(null);
+    },
+    [model, selection.nodeId],
+  );
+
   // Select a node and pan/zoom to it, expanding its context first if collapsed.
   const focusNode = useCallback(
     (id: string) => {
@@ -230,6 +270,16 @@ export function App(): JSX.Element {
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) {
         return;
       }
+      if (event.key === 'Escape' && !paletteOpen && !templatesOpen && !pendingApply) {
+        if (tracedPath) {
+          setTracedPath(null);
+          return;
+        }
+        if (focusedGroupId) {
+          focusGroup(null);
+          return;
+        }
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault();
         if (event.shiftKey) {
@@ -244,11 +294,16 @@ export function App(): JSX.Element {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [api]);
+  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup]);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {
-    setSelection(next);
+    setSelection((current) => {
+      if (current.nodeId && current.nodeId !== next.nodeId) {
+        prevSelectedNode.current = current.nodeId;
+      }
+      return next;
+    });
     if (next.nodeId || next.edgeId || next.groupId) {
       setRightTab('inspector');
     }
@@ -423,8 +478,36 @@ export function App(): JSX.Element {
             typeFilter={typeFilter}
             overlay={overlay}
             theme={theme}
+            focusedGroupId={focusedGroupId}
+            onFocusGroup={focusGroup}
+            tracedPath={tracedPath}
+            onRequestTrace={requestTrace}
           />
           {model.nodes.length > 0 && <LensSwitcher lens={lens} onChange={setLens} />}
+          {focusedGroupId && (
+            <button
+              type="button"
+              className="atlas-mode-pill"
+              onClick={() => focusGroup(null)}
+              title="Exit focus (Esc)"
+            >
+              ◎ Focus: {model.groups.find((g) => g.id === focusedGroupId)?.name ?? focusedGroupId}
+              <span className="atlas-mode-pill__x">✕</span>
+            </button>
+          )}
+          {tracedPath && (
+            <button
+              type="button"
+              className="atlas-mode-pill"
+              onClick={() => setTracedPath(null)}
+              title="Clear path (Esc)"
+            >
+              ⇢ Path · {tracedPath.nodeIds.length - 1} hop
+              {tracedPath.nodeIds.length - 1 === 1 ? '' : 's'}
+              {tracedPath.reversed ? ' (reverse)' : ''}
+              <span className="atlas-mode-pill__x">✕</span>
+            </button>
+          )}
           <Legend model={model} activeFilter={typeFilter} onToggleFilter={toggleTypeFilter} />
           {model.nodes.length === 0 && ai.status.busy && (
             <div className="atlas-empty">
