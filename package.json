@@ -148,7 +148,6 @@
     "@typescript-eslint/parser": "^6.19.0",
     "esbuild": "^0.20.0",
     "eslint": "^8.56.0",
-    "playwright-core": "^1.61.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {
