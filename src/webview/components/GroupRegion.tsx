@@ -16,7 +16,7 @@ function GroupRegionComponent({
   selected,
 }: NodeProps<ArchitectureGroupData>): JSX.Element {
   const { group, memberCount } = data;
-  const { onToggleCollapse } = useCanvasCallbacks();
+  const { onToggleCollapse, onFocusGroup } = useCanvasCallbacks();
   return (
     <div
       className={`atlas-group${selected ? ' atlas-group--selected' : ''}`}
@@ -26,6 +26,15 @@ function GroupRegionComponent({
         <span className="atlas-group__dot" aria-hidden="true" />
         <span className="atlas-group__name">{group.name}</span>
         <span className="atlas-group__count">{memberCount}</span>
+        <button
+          type="button"
+          className="atlas-group__collapse"
+          title="Focus this context (dim everything else)"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={() => onFocusGroup(group.id)}
+        >
+          ◎
+        </button>
         <button
           type="button"
           className="atlas-group__collapse"

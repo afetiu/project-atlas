@@ -441,7 +441,7 @@ export function ArchitectureCanvas({
     [screenToFlowPosition, addNode, onSelectionChange],
   );
 
-  const canvasCallbacks = useMemo(() => ({ onToggleCollapse }), [onToggleCollapse]);
+  const canvasCallbacks = useMemo(() => ({ onToggleCollapse, onFocusGroup }), [onToggleCollapse, onFocusGroup]);
 
   return (
     <CanvasContext.Provider value={canvasCallbacks}>
