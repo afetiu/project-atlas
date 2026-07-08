@@ -6,6 +6,7 @@ import {
   blastRadius,
   deserializePlan,
   planFileName,
+  planProgress,
   renderAdr,
   serializePlan,
   type Plan,
@@ -59,6 +60,54 @@ test('assessPlan reports changes, blast, and health delta', () => {
   // gw is changed (edge endpoints); web depends on gw → blast unless itself changed.
   assert.ok(a.before.score !== a.after.score || a.introducedInsights.length > 0);
   assert.ok(a.introducedInsights.some((t) => /cycle/i.test(t)));
+});
+
+test('a decided plan round-trips its frozen baseline', () => {
+  const plan: Plan = {
+    name: 'Split billing',
+    rationale: '',
+    status: 'decided',
+    createdAt: '2026-07-08T09:00:00Z',
+    target: model([n('a'), n('billing')]),
+    baseline: model([n('a')]),
+  };
+  const back = deserializePlan(serializePlan(plan));
+  assert.equal(back.status, 'decided');
+  assert.equal(back.baseline?.nodes.length, 1);
+  assert.equal(back.baseline?.nodes[0].id, 'a');
+  // Draft plans have no baseline, and deserializing one must not invent it.
+  const draft = deserializePlan(serializePlan({ ...plan, status: 'draft', baseline: undefined }));
+  assert.equal(draft.baseline, undefined);
+});
+
+test('planProgress checks each decided change off against the current model', () => {
+  const baseline = model(
+    [n('web', 'frontend'), n('gw'), n('db', 'database')],
+    [e('web', 'gw'), e('gw', 'db')],
+  );
+  // The plan: add a cache, route gw through it, rename db, drop gw→db.
+  const target = model(
+    [n('web', 'frontend'), n('gw'), n('db', 'database', { name: 'Orders DB (private)' }), n('cache', 'cache')],
+    [e('web', 'gw'), e('gw', 'cache'), e('cache', 'db')],
+  );
+  // Reality so far: the cache exists and gw→cache landed; the rename and the
+  // gw→db removal haven't happened, and cache→db is missing.
+  const current = model(
+    [n('web', 'frontend'), n('gw'), n('db', 'database'), n('cache', 'cache')],
+    [e('web', 'gw'), e('gw', 'db'), e('gw', 'cache')],
+  );
+  const p = planProgress(baseline, target, current);
+  assert.equal(p.total, 5);
+  assert.equal(p.done, 2);
+  const by = (label: string) => p.items.find((i) => i.label.includes(label));
+  assert.equal(by('Add cache "cache"')?.done, true);
+  assert.equal(by('Connect gw → cache')?.done, true);
+  assert.equal(by('Connect cache → Orders DB (private)')?.done, false);
+  assert.equal(by('Disconnect gw → Orders DB (private)')?.done, false);
+  assert.equal(by('Update "Orders DB (private)" (name)')?.done, false);
+  // Reality catches up completely → everything checks off.
+  const done = planProgress(baseline, target, target);
+  assert.equal(done.done, done.total);
 });
 
 test('renderAdr produces a complete decision record', () => {

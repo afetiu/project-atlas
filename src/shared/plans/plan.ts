@@ -26,6 +26,12 @@ export interface Plan {
   createdAt: string;
   /** The proposed architecture. */
   target: ArchitectureModel;
+  /**
+   * The real architecture at decision time, frozen when the ADR is generated.
+   * It defines what the plan *changed*, so progress toward the target can be
+   * tracked as the codebase catches up.
+   */
+  baseline?: ArchitectureModel;
 }
 
 export interface PlanSummary {
@@ -33,6 +39,8 @@ export interface PlanSummary {
   name: string;
   status: PlanStatus;
   createdAt: string;
+  /** How much of a decided plan is built (present once a baseline exists). */
+  progress?: { done: number; total: number };
 }
 
 export function serializePlan(plan: Plan): string {
@@ -43,6 +51,7 @@ export function serializePlan(plan: Plan): string {
       createdAt: plan.createdAt,
       rationale: plan.rationale,
       target: modelToPlain(plan.target),
+      ...(plan.baseline ? { baseline: modelToPlain(plan.baseline) } : {}),
     },
     { indent: 2, lineWidth: 0 },
   );
@@ -58,6 +67,7 @@ export function deserializePlan(text: string): Plan {
       status === 'decided' || status === 'applied' || status === 'abandoned' ? status : 'draft',
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
     target: modelFromPlain(raw.target),
+    ...(raw.baseline ? { baseline: modelFromPlain(raw.baseline) } : {}),
   };
 }
 
@@ -165,6 +175,138 @@ export function blastRadius(model: ArchitectureModel, changedIds: ReadonlySet<st
     }
   }
   return out;
+}
+
+/* -------------------------------- progress ------------------------------- */
+
+export interface PlanProgressItem {
+  label: string;
+  done: boolean;
+  /** Component to focus when the item is clicked, when one is implicated. */
+  nodeId?: string;
+}
+
+export interface PlanProgress {
+  done: number;
+  total: number;
+  items: PlanProgressItem[];
+}
+
+/**
+ * How much of a decided plan has actually been built. The plan's changes are
+ * what it proposed at decision time (baseline → target); each one is checked
+ * off against the model the codebase currently realizes.
+ */
+export function planProgress(
+  baseline: ArchitectureModel,
+  target: ArchitectureModel,
+  current: ArchitectureModel,
+): PlanProgress {
+  const delta = diffModels(baseline, target);
+  const nodes = new Map(current.nodes.map((n) => [n.id, n]));
+  const groups = new Map(current.groups.map((g) => [g.id, g]));
+  const hasEdge = (source: string, targetId: string) =>
+    current.edges.some((e) => e.source === source && e.target === targetId);
+  const edgeOf = (source: string, targetId: string) =>
+    current.edges.find((e) => e.source === source && e.target === targetId);
+  const name = (id: string) => target.nodes.find((n) => n.id === id)?.name ?? id;
+
+  const items: PlanProgressItem[] = [];
+
+  for (const n of delta.addedNodes) {
+    items.push({ label: `Add ${n.type} "${n.name}"`, done: nodes.has(n.id), nodeId: n.id });
+  }
+  for (const n of delta.removedNodes) {
+    items.push({ label: `Remove ${n.type} "${n.name}"`, done: !nodes.has(n.id) });
+  }
+  for (const { after, changes } of delta.updatedNodes) {
+    const cur = nodes.get(after.id);
+    const done = !!cur && changes.every((kind) => nodeFieldRealized(kind, cur, after));
+    items.push({
+      label: `Update "${after.name}" (${changes.join(', ')})`,
+      done,
+      nodeId: after.id,
+    });
+  }
+  for (const e of delta.addedEdges) {
+    items.push({
+      label: `Connect ${name(e.source)} → ${name(e.target)}`,
+      done: hasEdge(e.source, e.target),
+      nodeId: e.source,
+    });
+  }
+  for (const e of delta.removedEdges) {
+    items.push({
+      label: `Disconnect ${name(e.source)} → ${name(e.target)}`,
+      done: !hasEdge(e.source, e.target),
+      nodeId: e.source,
+    });
+  }
+  for (const { before, after, changes } of delta.updatedEdges) {
+    if (changes.includes('endpoints')) {
+      items.push({
+        label: `Rewire ${name(before.source)} → ${name(before.target)} to ${name(after.source)} → ${name(after.target)}`,
+        done: hasEdge(after.source, after.target) && !hasEdge(before.source, before.target),
+        nodeId: after.source,
+      });
+    }
+    if (changes.includes('protocol')) {
+      items.push({
+        label: `Switch ${name(after.source)} → ${name(after.target)} to ${after.protocol}`,
+        done: edgeOf(after.source, after.target)?.protocol === after.protocol,
+        nodeId: after.source,
+      });
+    }
+  }
+  for (const g of delta.addedGroups) {
+    items.push({ label: `Add context "${g.name}"`, done: groups.has(g.id) });
+  }
+  for (const g of delta.removedGroups) {
+    items.push({ label: `Remove context "${g.name}"`, done: !groups.has(g.id) });
+  }
+  for (const { after, changes } of delta.updatedGroups) {
+    const cur = groups.get(after.id);
+    const done = !!cur && changes.every((kind) => groupFieldRealized(kind, cur, after));
+    items.push({ label: `Update context "${after.name}" (${changes.join(', ')})`, done });
+  }
+
+  return { done: items.filter((i) => i.done).length, total: items.length, items };
+}
+
+function nodeFieldRealized(
+  kind: 'name' | 'type' | 'description' | 'mapping' | 'group',
+  current: ArchitectureModel['nodes'][number],
+  after: ArchitectureModel['nodes'][number],
+): boolean {
+  switch (kind) {
+    case 'name':
+      return current.name === after.name;
+    case 'type':
+      return current.type === after.type;
+    case 'description':
+      return current.description === after.description;
+    case 'mapping':
+      return JSON.stringify(current.mapping ?? {}) === JSON.stringify(after.mapping ?? {});
+    case 'group':
+      return (current.groupId ?? '') === (after.groupId ?? '');
+  }
+}
+
+function groupFieldRealized(
+  kind: 'name' | 'description' | 'color' | 'mapping',
+  current: ArchitectureModel['groups'][number],
+  after: ArchitectureModel['groups'][number],
+): boolean {
+  switch (kind) {
+    case 'name':
+      return current.name === after.name;
+    case 'description':
+      return (current.description ?? '') === (after.description ?? '');
+    case 'color':
+      return (current.color ?? '') === (after.color ?? '');
+    case 'mapping':
+      return JSON.stringify(current.mapping ?? {}) === JSON.stringify(after.mapping ?? {});
+  }
 }
 
 /* --------------------------------- ADR ----------------------------------- */

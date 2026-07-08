@@ -98,9 +98,19 @@ export function usePlans(api: ArchitectureModelApi): PlansState {
         apiRef.current.enterSandbox(message.plan.target);
       } else if (message.type === 'plan:adrSaved') {
         setAdrPath(message.path);
+        // Mirror what the host just persisted: decided status and the frozen
+        // baseline (the real model), so progress tracking starts immediately.
+        const baseline = apiRef.current.baseModel;
         setActive((current) =>
           current && current.file === message.file
-            ? { ...current, plan: { ...current.plan, status: 'decided' } }
+            ? {
+                ...current,
+                plan: {
+                  ...current.plan,
+                  status: 'decided',
+                  ...(baseline ? { baseline } : {}),
+                },
+              }
             : current,
         );
       }

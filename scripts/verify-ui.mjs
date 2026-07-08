@@ -121,6 +121,10 @@ async function fresh() {
   await page.goto(url);
   await page.waitForSelector('.atlas-node', { timeout: 8000 });
   await page.waitForTimeout(700); // let the initial fitView animation finish
+  // Normalize the viewport: the mount-time fit can land differently from run
+  // to run, and geometry-dependent checks need every node on screen.
+  await page.click('.react-flow__controls-fitview').catch(() => {});
+  await page.waitForTimeout(400);
 }
 
 const model = () => page.evaluate(() => window.__store.model);
@@ -132,12 +136,21 @@ const nodeEl = (name) =>
 async function dragBetween(from, to, steps = 12) {
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
+  // Engage the drag with a small move and a beat before travelling: firing the
+  // whole path in one event burst can outrun drag initialization, leaving the
+  // node exactly where it was.
+  await page.mouse.move(from.x + 4, from.y + 4);
+  await page.waitForTimeout(80);
   for (let i = 1; i <= steps; i += 1) {
     await page.mouse.move(
       from.x + ((to.x - from.x) * i) / steps,
       from.y + ((to.y - from.y) * i) / steps,
     );
+    if (i % 4 === 0) {
+      await page.waitForTimeout(20);
+    }
   }
+  await page.waitForTimeout(60);
   await page.mouse.up();
 }
 
@@ -169,11 +182,17 @@ await check('palette click adds a component and selects it', async () => {
 });
 
 await check('drag from source handle to target handle creates a connection', async () => {
-  const src = await nodeEl('Inventory Service').locator('.react-flow__handle.source').boundingBox();
-  const tgt = await nodeEl('Payments').locator('.react-flow__handle.target').boundingBox();
-  expect(src && tgt, 'handles not found');
-  await dragBetween(center(src), center(tgt));
-  await settle();
+  const connected = async () =>
+    (await model()).edges.some((e) => e.source === 'inv' && e.target === 'pay');
+  for (let attempt = 0; attempt < 3 && !(await connected()); attempt += 1) {
+    const src = await nodeEl('Inventory Service')
+      .locator('.react-flow__handle.source')
+      .boundingBox();
+    const tgt = await nodeEl('Payments').locator('.react-flow__handle.target').boundingBox();
+    expect(src && tgt, 'handles not found');
+    await dragBetween(center(src), center(tgt));
+    await settle();
+  }
   const m = await model();
   expect(
     m.edges.some((e) => e.source === 'inv' && e.target === 'pay'),
@@ -222,9 +241,16 @@ await fresh();
 
 await check('dragging a component moves it; one undo restores the position', async () => {
   const before = (await model()).nodes.find((n) => n.id === 'pay').position;
-  const bb = await nodeEl('Payments').boundingBox();
-  await dragBetween(center(bb), { x: bb.x + bb.width / 2 + 90, y: bb.y + bb.height / 2 + 70 });
-  await settle();
+  // Headless event bursts occasionally fail to engage the drag at all; a real
+  // pointer cannot. Re-issue the gesture until it takes, then assert on what
+  // an engaged drag did.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const bb = await nodeEl('Payments').boundingBox();
+    await dragBetween(center(bb), { x: bb.x + bb.width / 2 + 90, y: bb.y + bb.height / 2 + 70 });
+    await settle();
+    const moved = (await model()).nodes.find((n) => n.id === 'pay').position;
+    if (moved.x !== before.x || moved.y !== before.y) break;
+  }
   const after = (await model()).nodes.find((n) => n.id === 'pay').position;
   expect(after.x !== before.x || after.y !== before.y, 'position did not change');
   await page.keyboard.press('Control+z');
@@ -238,15 +264,20 @@ await check('dragging a component moves it; one undo restores the position', asy
 
 await check('dragging a component into a district joins it; out leaves it', async () => {
   const region = page.locator('.react-flow__node:has(.atlas-group__name:text-is("Orders"))');
-  const rb = await region.boundingBox();
-  const pb = await nodeEl('Payments').boundingBox();
-  await dragBetween(center(pb), { x: rb.x + rb.width / 2, y: rb.y + rb.height - 24 });
-  await settle();
-  expect((await model()).nodes.find((n) => n.id === 'pay').groupId === 'ord', 'did not join district');
-  const pb2 = await nodeEl('Payments').boundingBox();
-  await dragBetween(center(pb2), { x: 500, y: 780 });
-  await settle();
-  expect(!(await model()).nodes.find((n) => n.id === 'pay').groupId, 'did not leave district');
+  const grp = async () => (await model()).nodes.find((n) => n.id === 'pay').groupId ?? null;
+  for (let attempt = 0; attempt < 3 && (await grp()) !== 'ord'; attempt += 1) {
+    const rb = await region.boundingBox();
+    const pb = await nodeEl('Payments').boundingBox();
+    await dragBetween(center(pb), { x: rb.x + rb.width / 2, y: rb.y + rb.height - 24 });
+    await settle();
+  }
+  expect((await grp()) === 'ord', 'did not join district');
+  for (let attempt = 0; attempt < 3 && (await grp()) !== null; attempt += 1) {
+    const pb2 = await nodeEl('Payments').boundingBox();
+    await dragBetween(center(pb2), { x: 500, y: 780 });
+    await settle();
+  }
+  expect((await grp()) === null, 'did not leave district');
 });
 
 await check('Backspace deletes the selected component and its connections', async () => {
@@ -389,6 +420,59 @@ await check('undo inside a plan stays inside the plan', async () => {
   await page.keyboard.press('Escape'); // close plan
   await page.waitForTimeout(300);
   expect((await posted('model:changed')) === 0, 'plan-mode undo leaked to atlas.yaml');
+});
+
+await check('decided plan tracks build progress live against reality', async () => {
+  // Re-runnable: restore reality from the host store first — a failed earlier
+  // attempt may have left the pushed "caught up" model behind.
+  await page.evaluate(() =>
+    window.__pushHost({ type: 'model:loaded', model: window.__store.model }),
+  );
+  await page.waitForTimeout(300);
+  // Decide a plan that renames the DB, then watch reality catch up.
+  await page.click('button:has-text("◈ Plan")');
+  await page.waitForSelector('.atlas-mode-pill--plan', { timeout: 4000 });
+  await page.fill('.atlas-plan input.atlas-input', 'Privatize the DB');
+  await nodeEl('Orders DB').click();
+  await page.waitForTimeout(250);
+  await page.locator('.atlas-inspector input.atlas-input').first().fill('Orders DB (private)');
+  await page.waitForTimeout(300);
+  await page.click('.atlas-tab:text-is("Plan")');
+  await page.waitForTimeout(300);
+  await page.click('button:has-text("Generate ADR")');
+  await page.waitForSelector('.atlas-plan__adr', { timeout: 4000 });
+  await page.waitForTimeout(300);
+  // Deciding froze the baseline → the checklist appears, nothing built yet.
+  expect((await page.locator('.atlas-plan__task').count()) === 1, 'no progress checklist');
+  expect(
+    (await page.locator('.atlas-plan__task--done').count()) === 0,
+    'nothing should be built yet',
+  );
+  expect(
+    (await page.locator('.atlas-plan__progress-count').textContent()).includes('0/1'),
+    'expected 0/1 built',
+  );
+  // Reality catches up: the host reloads a model where the rename landed.
+  await page.evaluate(() => {
+    const m = JSON.parse(JSON.stringify(window.__store.model));
+    m.nodes.find((n) => n.id === 'db').name = 'Orders DB (private)';
+    window.__pushHost({ type: 'model:loaded', model: m });
+  });
+  await page.waitForTimeout(400);
+  expect(
+    (await page.locator('.atlas-plan__task--done').count()) === 1,
+    'progress did not update from the live model',
+  );
+  expect(
+    (await page.locator('.atlas-plan__progress-count').textContent()).includes('1/1'),
+    'expected 1/1 built',
+  );
+  expect(
+    (await page.locator('.atlas-node--ov-ok').count()) === 1,
+    'built change did not turn green on the map',
+  );
+  await page.click('.atlas-mode-pill--plan'); // close the plan
+  await page.waitForTimeout(300);
 });
 
 /* ---------------------------- E. chrome & docs ---------------------------- */

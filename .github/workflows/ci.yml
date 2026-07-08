@@ -24,3 +24,12 @@ jobs:
           mkdir -p /tmp/atlascheck
           cp atlas.example.yaml /tmp/atlascheck/atlas.yaml
           node dist/atlas-check.mjs /tmp/atlascheck --min-score=70
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: chromium-${{ runner.os }}-1.61.1
+      - name: Install Chromium
+        run: npx --yes playwright@1.61.1 install --with-deps chromium
+      - name: UI interaction suite
+        run: npm run test:ui

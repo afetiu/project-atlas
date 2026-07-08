@@ -16,7 +16,7 @@ import {
   type OverlayTone,
 } from '../../shared/model/lenses';
 import { findPath, type TracedPath } from '../../shared/model/path';
-import { assessPlan } from '../../shared/plans/plan';
+import { assessPlan, planProgress } from '../../shared/plans/plan';
 import { groupBounds } from '../adapters/reactFlowAdapter';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
 import type { ArchitectureModel } from '../../shared/model/types';
@@ -166,8 +166,19 @@ export function App(): JSX.Element {
     [planActive, api.baseModel, model],
   );
 
+  // Once a plan is decided, its baseline is frozen and the map tracks how much
+  // of it the codebase has actually built — live, against the real model.
+  const planTracking = useMemo(() => {
+    const baseline = plans.active?.plan.baseline;
+    if (!planActive || !baseline || !api.baseModel) {
+      return null;
+    }
+    return planProgress(baseline, model, api.baseModel);
+  }, [planActive, plans.active, model, api.baseModel]);
+
   // In plan mode the map becomes its own lens: changed components glow copper,
-  // the blast radius glows amber, and everything untouched recedes.
+  // the blast radius glows amber, and everything untouched recedes. On a
+  // decided plan, changes that have landed in the codebase turn green.
   const planOverlay = useMemo<LensOverlay | null>(() => {
     if (!planAssessment) {
       return null;
@@ -182,12 +193,20 @@ export function App(): JSX.Element {
     for (const id of planAssessment.changedNodeIds) {
       nodeTone.set(id, 'info');
     }
+    // Decided plans paint from their frozen baseline diff: the live diff
+    // shrinks as reality catches up, but the plan's committed changes must
+    // stay visible — green once built, copper while pending.
+    for (const item of planTracking?.items ?? []) {
+      if (item.nodeId) {
+        nodeTone.set(item.nodeId, item.done ? 'ok' : 'info');
+      }
+    }
     const edgeTone = new Map<string, OverlayTone>();
     for (const edge of [...planAssessment.delta.addedEdges, ...planAssessment.delta.updatedEdges.map((u) => u.after)]) {
       edgeTone.set(edge.id, 'hot');
     }
     return { nodeTone, edgeTone, edgeWeight: new Map() };
-  }, [planAssessment, model.nodes]);
+  }, [planAssessment, planTracking, model.nodes]);
 
   // Entering plan mode opens the Plan tab; leaving it returns to the inspector.
   useEffect(() => {
@@ -782,6 +801,7 @@ export function App(): JSX.Element {
               file={plans.active.file}
               plan={plans.active.plan}
               assessment={planAssessment}
+              progress={planTracking}
               adrPath={plans.adrPath}
               nameOf={(id) => model.nodes.find((n) => n.id === id)?.name ?? id}
               onRename={plans.rename}

@@ -2719,3 +2719,76 @@ select.atlas-input {
 .atlas-plan__adr:hover {
   color: var(--text);
 }
+
+/* Plan progress — a decided plan tracked against what the codebase realizes. */
+
+.atlas-plan__progress-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.atlas-plan__progress-count {
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.atlas-plan__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-strong) 60%, transparent);
+  overflow: hidden;
+}
+
+.atlas-plan__bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), #4fd1a1);
+  transition: width 400ms ease;
+}
+
+.atlas-plan__checklist {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.atlas-plan__task {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+}
+
+.atlas-plan__task:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.atlas-plan__task--done {
+  color: var(--text-muted);
+}
+
+.atlas-plan__task-mark {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.atlas-plan__task--done .atlas-plan__task-mark {
+  color: #4fd1a1;
+}

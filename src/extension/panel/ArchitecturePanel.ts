@@ -46,6 +46,7 @@ import {
   assessPlan,
   deserializePlan,
   planFileName,
+  planProgress,
   renderAdr,
   serializePlan,
   type Plan,
@@ -386,6 +387,14 @@ export class ArchitecturePanel {
 
   private async pushPlanEntries(): Promise<void> {
     const plans: PlanSummary[] = [];
+    // Decided plans report how much of them is built, measured against the
+    // architecture the codebase currently realizes.
+    let current: import('../../shared/model/types').ArchitectureModel | null = null;
+    try {
+      current = (await this.deps.fileService.read()).model;
+    } catch {
+      // unreadable atlas.yaml — entries still list, just without progress
+    }
     try {
       const entries = await vscode.workspace.fs.readDirectory(this.plansDirUri());
       for (const [name, kind] of entries) {
@@ -397,7 +406,19 @@ export class ArchitecturePanel {
             vscode.Uri.joinPath(this.plansDirUri(), name),
           );
           const plan = deserializePlan(new TextDecoder().decode(bytes));
-          plans.push({ file: name, name: plan.name, status: plan.status, createdAt: plan.createdAt });
+          const progress =
+            plan.baseline && current
+              ? (({ done, total }) => ({ done, total }))(
+                  planProgress(plan.baseline, plan.target, current),
+                )
+              : undefined;
+          plans.push({
+            file: name,
+            name: plan.name,
+            status: plan.status,
+            createdAt: plan.createdAt,
+            ...(progress && progress.total > 0 ? { progress } : {}),
+          });
         } catch {
           // unreadable plan — skip
         }
@@ -470,7 +491,9 @@ export class ArchitecturePanel {
       const markdown = renderAdr({ number: next, plan, base, assessment });
       await vscode.workspace.fs.writeFile(adrUri, new TextEncoder().encode(markdown));
 
-      const decided: Plan = { ...plan, status: 'decided' };
+      // Freeze the baseline with the decision: it defines what this plan
+      // changed, so progress toward the target stays measurable from here on.
+      const decided: Plan = { ...plan, status: 'decided', baseline: base };
       await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(decided)));
 
       const path = `docs/adr/${adrName}`;

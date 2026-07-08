@@ -73,7 +73,9 @@ export function CommandPalette({
       ...plans.map((plan) => ({
         id: `plan-${plan.file}`,
         label: `Open plan: ${plan.name}`,
-        hint: plan.status === 'draft' ? 'Plan · draft' : `Plan · ${plan.status}`,
+        hint: `Plan · ${plan.status}${
+          plan.progress ? ` · ${plan.progress.done}/${plan.progress.total} built` : ''
+        }`,
         run: () => onOpenPlan(plan.file),
       })),
     ];

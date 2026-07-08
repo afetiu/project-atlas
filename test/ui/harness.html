@@ -54,8 +54,25 @@ window.__pushHost = push;
 
 const store = { plans: new Map(), posted: [], model: NOW };
 window.__store = store;
+// Minimal stand-in for the host's progress computation (adds + renames only —
+// enough for the fixtures this harness serves).
+function calcProgress(p) {
+  if (!p.baseline) return undefined;
+  const cur = new Map(store.model.nodes.map((n) => [n.id, n]));
+  const base = new Map(p.baseline.nodes.map((n) => [n.id, n]));
+  const items = [];
+  for (const n of p.target.nodes) {
+    const b = base.get(n.id);
+    if (!b) items.push(cur.has(n.id));
+    else if (b.name !== n.name) items.push(cur.get(n.id)?.name === n.name);
+  }
+  return items.length > 0 ? { done: items.filter(Boolean).length, total: items.length } : undefined;
+}
 const entries = () => [...store.plans.entries()]
-  .map(([file, p]) => ({ file, name: p.name, status: p.status, createdAt: p.createdAt }))
+  .map(([file, p]) => {
+    const progress = calcProgress(p);
+    return { file, name: p.name, status: p.status, createdAt: p.createdAt, ...(progress ? { progress } : {}) };
+  })
   .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
 window.acquireVsCodeApi = () => ({
@@ -79,7 +96,8 @@ window.acquireVsCodeApi = () => ({
       if (p) setTimeout(() => push({ type: "plan:loaded", file: m.file, plan: p }), 50);
     }
     if (m.type === "plan:adr") {
-      store.plans.set(m.file, { ...m.plan, status: "decided" });
+      // Like the real host: deciding freezes the current model as the baseline.
+      store.plans.set(m.file, { ...m.plan, status: "decided", baseline: store.model });
       const slug = m.file.replace(/\.yaml$/, "");
       setTimeout(() => {
         push({ type: "plan:adrSaved", file: m.file, path: `docs/adr/adr-001-${slug}.md` });
