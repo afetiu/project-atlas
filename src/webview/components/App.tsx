@@ -398,6 +398,10 @@ export function App(): JSX.Element {
           focusGroup(null);
           return;
         }
+        if (selection.nodeId || selection.edgeId || selection.groupId) {
+          setSelection(EMPTY_SELECTION);
+          return;
+        }
         if (planActive) {
           plans.closePlan();
           return;
@@ -417,7 +421,7 @@ export function App(): JSX.Element {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup, timelapse, exitTimelapse, planActive, plans]);
+  }, [api, paletteOpen, templatesOpen, pendingApply, tracedPath, focusedGroupId, focusGroup, timelapse, exitTimelapse, planActive, plans, selection]);
 
   // Focus the inspector whenever something is selected on the canvas.
   const selectOnCanvas = useCallback((next: Selection) => {

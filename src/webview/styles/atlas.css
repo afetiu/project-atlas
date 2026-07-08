@@ -1190,9 +1190,15 @@ select.atlas-input {
 /* ---------------- Bounded-context regions ---------------- */
 
 /* The region box must not capture pointer events, so components inside stay
-   interactive and the canvas pans normally. Only the header label is active. */
+   interactive, connections routed across a district stay clickable, and the
+   canvas pans normally. Only the header strip is active (select, drag, focus,
+   collapse). !important: React Flow puts `pointer-events: all` on the
+   wrapper's inline style, which silently defeated the plain rule. */
 .react-flow__node-group {
-  pointer-events: none;
+  pointer-events: none !important;
+}
+.react-flow__node-group .atlas-group__header {
+  pointer-events: all;
 }
 
 .atlas-group {

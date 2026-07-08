@@ -435,12 +435,24 @@ export function ArchitectureCanvas({
 
   // Drag a component into a region to join that bounded context (or out to
   // leave). Starting a drag also selects, matching direct-manipulation habit.
+  // Region bounds are snapshotted at drag start: regions wrap their members,
+  // so live bounds would stretch to follow the dragged node and its own
+  // district could never be left.
+  const dragStartBounds = useRef<ReturnType<typeof groupBounds> | null>(null);
   const handleNodeDragStart = useCallback(
-    (_event: React.MouseEvent, node: FlowNodeType) => {
+    (event: React.MouseEvent, node: FlowNodeType) => {
       beginInteraction();
+      dragStartBounds.current = groupBounds(model);
+      // Path tracing triggers on the mousedown, not the click: the selection
+      // re-render can retarget the composed click at the pane, so a click-time
+      // shift check would silently miss (see the phantom note above).
+      if (event.shiftKey && groupIdOf(node.id) === null) {
+        onRequestTrace(node.id);
+        return;
+      }
       selectElement(node.id, null);
     },
-    [beginInteraction, selectElement],
+    [beginInteraction, selectElement, model, onRequestTrace],
   );
 
   const handleNodeDragStop = useCallback(
@@ -451,8 +463,10 @@ export function ArchitectureCanvas({
       }
       const cx = node.position.x + (node.width ?? 210) / 2;
       const cy = node.position.y + (node.height ?? 60) / 2;
+      const bounds = dragStartBounds.current ?? groupBounds(model);
+      dragStartBounds.current = null;
       let targetGroup: string | null = null;
-      for (const [groupId, b] of groupBounds(model)) {
+      for (const [groupId, b] of bounds) {
         if (cx >= b.x && cx <= b.x + b.width && cy >= b.y && cy <= b.y + b.height) {
           targetGroup = groupId;
           break;
@@ -510,6 +524,11 @@ export function ArchitectureCanvas({
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={2}
+        // Shift is the path-tracing modifier. By default React Flow binds it
+        // to box-selection, whose overlay swallows the click before the node
+        // handler runs — so the selection box is disabled outright.
+        selectionKeyCode={null}
+        multiSelectionKeyCode={null}
       >
         {/* A faint graticule (like a sea-chart grid) over the water base set in
             CSS, so the canvas reads as a map surface rather than a blank pane. */}
