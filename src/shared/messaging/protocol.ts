@@ -323,6 +323,17 @@ export interface PlanLoadMessage {
 }
 
 /**
+ * Move a plan to a new file name (used when a draft sheds its "untitled" slug
+ * on first naming). Carries the plan so the move can never lose content.
+ */
+export interface PlanRenameMessage {
+  type: 'plan:rename';
+  from: string;
+  to: string;
+  plan: Plan;
+}
+
+/**
  * Generate the plan's ADR into docs/adr/ and mark the plan decided. Carries the
  * plan itself so the record reflects the editor state, not a stale disk copy.
  */
@@ -366,6 +377,7 @@ export type WebviewToHostMessage =
   | PlanListMessage
   | PlanSaveMessage
   | PlanLoadMessage
+  | PlanRenameMessage
   | PlanAdrMessage
   | HistoryListMessage
   | HistoryLoadMessage

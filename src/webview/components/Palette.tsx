@@ -28,7 +28,7 @@ export function Palette({ onAdd, onCollapse }: PaletteProps): JSX.Element {
   };
 
   return (
-    <aside className="atlas-palette" aria-label="Node palette">
+    <aside className="atlas-palette" aria-label="Component palette">
       <div className="atlas-palette__heading">
         <span>Components</span>
         {onCollapse && (

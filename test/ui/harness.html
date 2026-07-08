@@ -95,6 +95,11 @@ window.acquireVsCodeApi = () => ({
       const p = store.plans.get(m.file);
       if (p) setTimeout(() => push({ type: "plan:loaded", file: m.file, plan: p }), 50);
     }
+    if (m.type === "plan:rename") {
+      store.plans.delete(m.from);
+      store.plans.set(m.to, m.plan);
+      setTimeout(() => { push({ type: "plan:saved", file: m.to }); push({ type: "plan:entries", plans: entries() }); }, 40);
+    }
     if (m.type === "plan:adr") {
       // Like the real host: deciding freezes the current model as the baseline.
       store.plans.set(m.file, { ...m.plan, status: "decided", baseline: store.model });
@@ -104,7 +109,12 @@ window.acquireVsCodeApi = () => ({
         push({ type: "plan:entries", plans: entries() });
       }, 60);
     }
-    if (m.type === "apply:request") { store.model = m.model; setTimeout(() => push({ type: "model:loaded", model: m.model }), 50); }
+    if (m.type === "apply:request") {
+      store.model = m.model;
+      setTimeout(() => push({ type: "model:loaded", model: m.model }), 50);
+      // Like the real host: code generation completes and verifies.
+      setTimeout(() => push({ type: "apply:done", summary: "Generated.", diff: "", revertable: true, verification: { ok: true, checks: [] } }), 200);
+    }
   },
   getState: () => { try { return JSON.parse(localStorage.getItem("atlas-harness-state") ?? "null") ?? undefined; } catch { return undefined; } },
   setState: (s) => { try { localStorage.setItem("atlas-harness-state", JSON.stringify(s)); } catch { /* ignore */ } },

@@ -29,6 +29,18 @@ import {
 export const ATLAS_FILE_NAME = 'atlas.yaml';
 export const ATLAS_LAYOUT_FILE_NAME = 'atlas.layout.yaml';
 
+/**
+ * Thrown when a write would overwrite an external edit this window has not
+ * ingested yet (e.g. a second VS Code window, a git checkout, a hand edit).
+ * The caller reloads from disk instead of clobbering.
+ */
+export class AtlasWriteConflictError extends Error {
+  constructor() {
+    super('atlas.yaml changed on disk since it was last read.');
+    this.name = 'AtlasWriteConflictError';
+  }
+}
+
 export interface ReadResult {
   model: ArchitectureModel;
   /** Present when the file exists but could not be parsed. */
@@ -93,6 +105,9 @@ export class AtlasFileService implements vscode.Disposable {
       const logical = deserializeModel(text);
       this.futureVersion = logical.version > CURRENT_MODEL_VERSION;
       const model = applyLayout(logical, await this.readLayoutText());
+      // Reading establishes what we believe is on disk, which arms the
+      // write-conflict guard from the very first write.
+      this.lastWrittenText = text;
       return this.futureVersion ? { model, readOnly: true } : { model };
     } catch (error) {
       const message =
@@ -136,6 +151,17 @@ export class AtlasFileService implements vscode.Disposable {
     // source-of-truth file stable and merge-clean.
     const logicalText = serializeModel(model);
     if (logicalText !== this.lastWrittenText) {
+      // Last-write-wins is fine within one window (writes are chained), but an
+      // edit from ANOTHER window (or a git checkout / hand edit) that we have
+      // not ingested must never be silently clobbered.
+      const onDisk = await this.readTextOrUndefined(this.fileUri);
+      if (
+        onDisk !== undefined &&
+        this.lastWrittenText !== undefined &&
+        onDisk !== this.lastWrittenText
+      ) {
+        throw new AtlasWriteConflictError();
+      }
       await this.writeAtomic(this.fileUri, logicalText);
       this.lastWrittenText = logicalText;
     }
@@ -143,6 +169,14 @@ export class AtlasFileService implements vscode.Disposable {
     if (layoutText !== this.lastWrittenLayout) {
       await this.writeAtomic(this.layoutUri, layoutText);
       this.lastWrittenLayout = layoutText;
+    }
+  }
+
+  private async readTextOrUndefined(uri: vscode.Uri): Promise<string | undefined> {
+    try {
+      return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+    } catch {
+      return undefined; // absent — nothing to conflict with
     }
   }
 

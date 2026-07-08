@@ -2792,3 +2792,64 @@ select.atlas-input {
 .atlas-plan__task--done .atlas-plan__task-mark {
   color: #4fd1a1;
 }
+
+/* Posture chips — the always-visible truth about where edits go, plus quiet
+   state chips (drift). Chips inform; banners (one at a time) interrupt. */
+
+.atlas-posture {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.atlas-posture--plan {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border-strong));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.atlas-posture--drift {
+  border-color: color-mix(in srgb, #f0a868 55%, var(--border-strong));
+  color: #f0a868;
+  cursor: pointer;
+}
+
+.atlas-posture--drift:hover {
+  border-color: #f0a868;
+}
+
+/* ⌘K section headers + plan abandon */
+
+.atlas-command__section {
+  padding: 8px 12px 4px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.atlas-plan__abandon {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: 11.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.atlas-plan__abandon:hover {
+  color: var(--danger);
+}

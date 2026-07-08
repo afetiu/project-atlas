@@ -16,6 +16,7 @@ import {
   type OverlayTone,
 } from '../../shared/model/lenses';
 import { findPath, type TracedPath } from '../../shared/model/path';
+import { analyzeArchitecture } from '../../shared/model/insights';
 import { assessPlan, planProgress } from '../../shared/plans/plan';
 import { groupBounds } from '../adapters/reactFlowAdapter';
 import type { NodeTypeId } from '../../shared/model/nodeTypes';
@@ -39,11 +40,10 @@ import { CommandPalette } from './CommandPalette';
 import { DiffOverlay } from './DiffOverlay';
 import { DocReader } from './DocReader';
 import { DocsPanel } from './DocsPanel';
-import { InsightsPanel } from './InsightsPanel';
+import { HealthPanel } from './HealthPanel';
 import { InspectorPanel } from './InspectorPanel';
 import { Legend } from './Legend';
 import { LensSwitcher } from './LensSwitcher';
-import { IssuesPanel } from './IssuesPanel';
 import { Palette } from './Palette';
 import { PlanPanel } from './PlanPanel';
 import { StatusBanner } from './StatusBanner';
@@ -54,7 +54,15 @@ import type { ArchitectureTemplate } from '../../shared/templates/templates';
 
 const EMPTY_SELECTION: Selection = { nodeId: null, edgeId: null, groupId: null };
 
-type RightTab = 'inspector' | 'assistant' | 'issues' | 'insights' | 'docs' | 'plan';
+type RightTab = 'inspector' | 'assistant' | 'health' | 'docs' | 'plan';
+
+/** Older persisted view states may carry the pre-merge tab names. */
+function migrateTab(tab: string | undefined): RightTab | undefined {
+  if (tab === 'issues' || tab === 'insights') {
+    return 'health';
+  }
+  return tab as RightTab | undefined;
+}
 
 /** View preferences persisted across reloads via the webview state API. */
 type Theme = 'dark' | 'light';
@@ -80,7 +88,7 @@ export function App(): JSX.Element {
 
   const persisted = useRef<PersistedView>(getViewState<PersistedView>() ?? {}).current;
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
-  const [rightTab, setRightTab] = useState<RightTab>(persisted.rightTab ?? 'inspector');
+  const [rightTab, setRightTab] = useState<RightTab>(migrateTab(persisted.rightTab) ?? 'inspector');
   const [collapsedGroups, setCollapsedGroups] = useState<ReadonlySet<string>>(
     new Set(persisted.collapsedGroups ?? []),
   );
@@ -269,8 +277,20 @@ export function App(): JSX.Element {
     }
     const changes = summarizeDelta(diffModels(api.baseModel, model));
     const instruction = plans.active.plan.rationale.trim() || plans.active.plan.name;
-    setPendingApply({ model, instruction, changes, onConfirmed: plans.finalizeApply });
+    setPendingApply({ model, instruction, changes, onConfirmed: plans.beginBuild });
   }, [plans, api.baseModel, model]);
+
+  const abandonPlan = useCallback(() => {
+    if (!plans.active) {
+      return;
+    }
+    const ok = window.confirm(
+      `Abandon "${plans.active.plan.name}"? The plan file stays under atlas/plans/, but it leaves your plan list.`,
+    );
+    if (ok) {
+      plans.abandonPlan();
+    }
+  }, [plans]);
 
   const toggleCollapse = useCallback((groupId: string) => {
     setCollapsedGroups((prev) => {
@@ -302,6 +322,11 @@ export function App(): JSX.Element {
     () => evaluateRules(model, [...BUILT_IN_RULES, ...ai.customRules]),
     [model, ai.customRules],
   );
+  // One report feeds the Health panel and its tab badge (rule violations plus
+  // non-informational structural findings — the "you should look" count).
+  const healthReport = useMemo(() => analyzeArchitecture(model), [model]);
+  const healthBadge =
+    violations.length + healthReport.insights.filter((i) => i.severity !== 'info').length;
   const issueByNode = useMemo(() => {
     const grouped = new Map<string, RuleSeverity>();
     const byNode = new Map<string, typeof violations>();
@@ -319,13 +344,6 @@ export function App(): JSX.Element {
     return grouped;
   }, [violations]);
 
-  const selectNode = useCallback(
-    (id: string) => {
-      setSelection({ nodeId: id, edgeId: null, groupId: null });
-      setRightTab('inspector');
-    },
-    [],
-  );
   const selectEdge = useCallback((id: string) => {
     setSelection({ nodeId: null, edgeId: id, groupId: null });
     setRightTab('inspector');
@@ -539,11 +557,33 @@ export function App(): JSX.Element {
           canRedo={api.canRedo}
           onUndo={api.undo}
           onRedo={api.redo}
-          onDetect={ai.detect}
+          onMapFromCode={mapFromCode}
           onApplyPending={requestApplyPending}
           onCancel={ai.cancel}
         />
         <div className="atlas-topbar__meta">
+          <span
+            className={`atlas-posture${planActive ? ' atlas-posture--plan' : ''}`}
+            title={
+              planActive
+                ? 'Plan mode: edits save to the plan file — atlas.yaml is untouched'
+                : 'Live edit: canvas changes save to atlas.yaml automatically'
+            }
+          >
+            {planActive ? '◈ Sandbox' : '✎ Live edit'}
+          </span>
+          {ai.driftedNodeIds.length > 0 && !ai.status.busy && !planActive && (
+            <button
+              type="button"
+              className="atlas-posture atlas-posture--drift"
+              onClick={() => focusNode(ai.driftedNodeIds[0])}
+              title={`${ai.driftedNodeIds.length} component${
+                ai.driftedNodeIds.length === 1 ? '' : 's'
+              } changed in code since the last detection — click to see. Re-detect with AI from ⌘K.`}
+            >
+              ≠ {ai.driftedNodeIds.length} drifted
+            </button>
+          )}
           {!planActive && model.nodes.length > 0 && (
             <button
               type="button"
@@ -572,40 +612,35 @@ export function App(): JSX.Element {
             {theme === 'dark' ? '☀' : '☾'}
           </button>
           <span className="atlas-topbar__counts">
-            {model.nodes.length} nodes · {model.edges.length} connections
+            {model.nodes.length} components · {model.edges.length} connections
             {model.groups.length > 0 && ` · ${model.groups.length} contexts`}
           </span>
         </div>
       </header>
 
-      {error && <StatusBanner message={error} />}
-      {ai.notice && (
+      {/* Noise discipline: at most ONE banner, highest severity first. States
+          (like drift) live as quiet chips in the topbar, not layout-shifting
+          banners — banners are reserved for things that need an answer. */}
+      {error ? (
         <StatusBanner
-          tone={ai.notice.tone === 'error' ? 'error' : 'info'}
-          message={ai.notice.text}
-          onDismiss={ai.dismissNotice}
+          message={error}
+          actionLabel="Open atlas.yaml"
+          onAction={() => openFile('atlas.yaml')}
         />
-      )}
-      {ai.driftedNodeIds.length > 0 && !ai.status.busy && (
-        <StatusBanner
-          tone="info"
-          message={`${ai.driftedNodeIds.length} component${
-            ai.driftedNodeIds.length === 1 ? '' : 's'
-          } changed in code since the last detection.`}
-          actionLabel="Show drifted"
-          onAction={() => focusNode(ai.driftedNodeIds[0])}
-          secondaryActionLabel="Re-detect"
-          onSecondaryAction={ai.detect}
-        />
-      )}
-      {ai.error && (
+      ) : ai.error ? (
         <StatusBanner
           message={ai.error.message}
           actionLabel={ai.error.code === 'auth' ? 'Set API key' : undefined}
           onAction={ai.error.code === 'auth' ? ai.configureAuth : undefined}
           onDismiss={ai.dismissError}
         />
-      )}
+      ) : ai.notice ? (
+        <StatusBanner
+          tone={ai.notice.tone === 'error' ? 'error' : 'info'}
+          message={ai.notice.text}
+          onDismiss={ai.dismissNotice}
+        />
+      ) : null}
 
       <div className="atlas-workspace">
         {componentsCollapsed ? (
@@ -770,15 +805,10 @@ export function App(): JSX.Element {
                 onClick={() => setRightTab('assistant')}
               />
               <TabButton
-                label="Issues"
-                active={rightTab === 'issues'}
-                onClick={() => setRightTab('issues')}
-                badge={violations.length}
-              />
-              <TabButton
-                label="Insights"
-                active={rightTab === 'insights'}
-                onClick={() => setRightTab('insights')}
+                label="Health"
+                active={rightTab === 'health'}
+                onClick={() => setRightTab('health')}
+                badge={healthBadge}
               />
               <TabButton
                 label="Docs"
@@ -808,17 +838,18 @@ export function App(): JSX.Element {
               onRationale={plans.setRationale}
               onGenerateAdr={plans.generateAdr}
               onBuild={buildPlan}
+              onAbandon={abandonPlan}
               onFocusNode={focusNode}
               onOpenFile={openFile}
             />
           ) : rightTab === 'docs' ? (
             <DocsPanel docs={docs} model={model} onFocusNode={focusNode} />
-          ) : rightTab === 'insights' ? (
-            <InsightsPanel model={model} onFocusNode={focusNode} />
-          ) : rightTab === 'issues' ? (
-            <IssuesPanel
+          ) : rightTab === 'health' ? (
+            <HealthPanel
+              model={model}
+              report={healthReport}
               violations={violations}
-              onSelectNode={selectNode}
+              onFocusNode={focusNode}
               onSelectEdge={selectEdge}
             />
           ) : rightTab === 'inspector' ? (
@@ -879,7 +910,7 @@ export function App(): JSX.Element {
       {paletteOpen && (
         <CommandPalette
           model={model}
-          plans={plans.plans}
+          plans={plans.plans.filter((p) => p.status !== 'abandoned')}
           onClose={() => setPaletteOpen(false)}
           onFocusNode={(id) => {
             focusNode(id);

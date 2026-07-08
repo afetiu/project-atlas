@@ -32,7 +32,7 @@ import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
-import { AtlasFileService } from '../workspace/AtlasFileService';
+import { AtlasFileService, AtlasWriteConflictError } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
 import { computeDrift } from '../workspace/drift';
 import { getFileAtCommit, getFileHistory, getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
@@ -185,6 +185,9 @@ export class ArchitecturePanel {
         break;
       case 'plan:load':
         await this.runPlanLoad(message.file);
+        break;
+      case 'plan:rename':
+        await this.runPlanRename(message.from, message.to, message.plan);
         break;
       case 'plan:adr':
         await this.runPlanAdr(message.file, message.plan);
@@ -461,6 +464,35 @@ export class ArchitecturePanel {
     } catch (error) {
       this.deps.logger.error(`Plan load failed: ${String(error)}`);
       this.post({ type: 'model:error', message: 'Atlas could not open that plan.' });
+    }
+  }
+
+  /**
+   * Move a plan to a new file (a named draft shedding its "untitled" slug).
+   * Content-carrying: the new file is written from the message before the old
+   * one is removed, so the move can never lose the plan.
+   */
+  private async runPlanRename(from: string, to: string, plan: Plan): Promise<void> {
+    const source = this.planUri(from);
+    const target = this.planUri(to);
+    if (!source || !target || source.toString() === target.toString()) {
+      return;
+    }
+    try {
+      await vscode.workspace.fs.createDirectory(this.plansDirUri());
+      await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(plan)));
+      try {
+        await vscode.workspace.fs.delete(source);
+      } catch {
+        // old file already gone — the write above is what matters
+      }
+      const base = target.path.split('/').pop()!;
+      this.deps.logger.info(`Plan renamed: atlas/plans/${from} → atlas/plans/${base}.`);
+      this.post({ type: 'plan:saved', file: base });
+      await this.pushPlanEntries();
+    } catch (error) {
+      this.deps.logger.error(`Plan rename failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not rename the plan file.' });
     }
   }
 
@@ -750,6 +782,19 @@ export class ArchitecturePanel {
     try {
       await this.deps.fileService.write(model);
     } catch (error) {
+      if (error instanceof AtlasWriteConflictError) {
+        // Someone else (another window, git, a hand edit) changed atlas.yaml
+        // since we read it. Reload their version rather than clobbering it,
+        // then say plainly what happened to the edit that lost the race.
+        this.deps.logger.info('Write conflict on atlas.yaml — reloading the on-disk version.');
+        await this.pushModelToWebview(true);
+        this.post({
+          type: 'model:error',
+          message:
+            'atlas.yaml changed outside this window, so the latest version was reloaded. Your last edit was not saved — redo it on the current map.',
+        });
+        return;
+      }
       this.deps.logger.error(`Failed to save atlas.yaml: ${String(error)}`);
       this.post({
         type: 'model:error',

@@ -58,6 +58,7 @@ const browser = await chromium.launch({
 });
 const page = await browser.newPage({ viewport: { width: 1500, height: 880 } });
 page.setDefaultTimeout(8000); // fail fast — a hung actionability check is a finding, not a wait
+page.on('dialog', (dialog) => dialog.accept()); // confirm() dialogs (delete/abandon)
 const url = 'file://' + path.join(root, 'test', 'ui', 'harness.html');
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e.message).split('\n')[0]));
@@ -475,7 +476,160 @@ await check('decided plan tracks build progress live against reality', async () 
   await page.waitForTimeout(300);
 });
 
-/* ---------------------------- E. chrome & docs ---------------------------- */
+/* ------------------------ E. clarity & lifecycle -------------------------- */
+
+section = 'clarity & lifecycle';
+await fresh();
+
+await check('posture chip tells the truth about where edits go', async () => {
+  expect(
+    (await page.locator('.atlas-posture').first().textContent()).includes('Live edit'),
+    'default posture should read Live edit',
+  );
+  await page.click('button:has-text("◈ Plan")');
+  await page.waitForSelector('.atlas-mode-pill--plan');
+  expect(
+    (await page.locator('.atlas-posture').first().textContent()).includes('Sandbox'),
+    'plan mode posture should read Sandbox',
+  );
+  await page.click('.atlas-mode-pill--plan');
+  await page.waitForTimeout(300);
+  expect(
+    (await page.locator('.atlas-posture').first().textContent()).includes('Live edit'),
+    'posture should return to Live edit after closing the plan',
+  );
+});
+
+await check('one banner at a time; drift is a chip, not a banner', async () => {
+  await page.evaluate(() => {
+    window.__pushHost({ type: 'model:error', message: 'Broken atlas.yaml (test)' });
+    window.__pushHost({
+      type: 'ai:error',
+      code: 'failed',
+      message: 'AI failed (test)',
+    });
+    window.__pushHost({ type: 'drift:status', driftedNodeIds: ['db'] });
+  });
+  await page.waitForTimeout(300);
+  expect((await page.locator('.atlas-banner').count()) === 1, 'expected exactly one banner');
+  const chip = page.locator('.atlas-posture--drift');
+  expect((await chip.count()) === 1, 'drift chip missing');
+  expect((await chip.textContent()).includes('1 drifted'), 'drift chip count wrong');
+  await chip.click();
+  await page.waitForTimeout(500);
+  expect(
+    (await page.locator('.atlas-inspector input.atlas-input').first().inputValue()) === 'Orders DB',
+    'drift chip click did not focus the drifted component',
+  );
+  // Clear the injected states for the next checks.
+  await page.evaluate(() => {
+    window.__pushHost({ type: 'model:loaded', model: window.__store.model });
+    window.__pushHost({ type: 'drift:status', driftedNodeIds: [] });
+  });
+  await page.waitForTimeout(300);
+});
+
+await check('Health tab merges rule violations and structural findings', async () => {
+  await page.click('.atlas-tab:has-text("Health")');
+  await page.waitForTimeout(300);
+  expect((await page.locator('.atlas-health__grade').count()) === 1, 'no health grade');
+  expect((await page.locator('.atlas-issue').count()) > 0, 'no findings listed');
+  const badge = await page.locator('.atlas-tab:has-text("Health") .atlas-tab__badge').textContent();
+  expect(Number(badge) > 0, 'health badge missing');
+  const first = page.locator('.atlas-issue').first();
+  await first.click();
+  await page.waitForTimeout(400);
+  expect(
+    (await page.locator('.atlas-tab--active').first().textContent()) !== 'Health' ||
+      (await page.locator('.atlas-inspector').count()) > 0,
+    'clicking a finding did nothing',
+  );
+});
+
+await check('⌘K groups actions, plans, components — verbs first', async () => {
+  await page.keyboard.press('Control+k');
+  await page.waitForSelector('.atlas-palette-modal__input');
+  const sections = await page.locator('.atlas-command__section').allTextContents();
+  expect(sections[0] === 'Actions', 'Actions section not first');
+  expect(sections.includes('Components'), 'Components section missing');
+  const firstLabel = await page.locator('.atlas-command__label').first().textContent();
+  expect(firstLabel === 'Map from code', 'first command should be Map from code');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+});
+
+await check('a built plan is marked applied only after the code verifies', async () => {
+  await page.click('button:has-text("◈ Plan")');
+  await page.waitForSelector('.atlas-mode-pill--plan');
+  await page.fill('.atlas-plan input.atlas-input', 'Verified build');
+  await nodeEl('Payments').click();
+  await page.waitForTimeout(250);
+  await page.locator('.atlas-inspector input.atlas-input').first().fill('Payments Gateway');
+  await page.waitForTimeout(300);
+  await page.click('.atlas-tab:text-is("Plan")');
+  await page.waitForTimeout(300);
+  await page.click('button:has-text("Build it")');
+  await page.waitForSelector('.atlas-modal, [role="dialog"]');
+  await page.click('button:has-text("Generate code")');
+  await page.waitForTimeout(80); // before the harness's simulated apply:done
+  const during = await page.evaluate(() => {
+    const saves = window.__store.posted.filter((m) => m.type === 'plan:save');
+    return saves[saves.length - 1]?.plan.status;
+  });
+  expect(during !== 'applied', 'plan claimed applied before the build verified');
+  await page.waitForTimeout(600); // apply:done (verified) arrives
+  const after = await page.evaluate(() => {
+    const saves = window.__store.posted.filter((m) => m.type === 'plan:save');
+    return saves[saves.length - 1]?.plan.status;
+  });
+  expect(after === 'applied', 'verified build did not mark the plan applied');
+  // Close the diff overlay the apply produced.
+  await page.click('button:has-text("Close")').catch(() => {});
+  await page.waitForTimeout(200);
+});
+
+await check('a named draft sheds its untitled file name when it leaves', async () => {
+  await page.keyboard.press('Control+k');
+  await page.fill('.atlas-palette-modal__input', 'New plan');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.atlas-mode-pill--plan');
+  await page.fill('.atlas-plan input.atlas-input', 'Ship the reslug');
+  await page.waitForTimeout(200);
+  await page.click('.atlas-mode-pill--plan'); // close → re-slug happens here
+  await page.waitForTimeout(400);
+  const renamed = await page.evaluate(() =>
+    window.__store.posted.some(
+      (m) => m.type === 'plan:rename' && m.to === 'ship-the-reslug.yaml',
+    ),
+  );
+  expect(renamed, 'plan:rename was not posted for the named draft');
+  const files = await page.evaluate(() => [...window.__store.plans.keys()]);
+  expect(files.includes('ship-the-reslug.yaml'), 'renamed plan file missing from store');
+});
+
+await check('abandoning a plan removes it from ⌘K but keeps the file', async () => {
+  await page.click('button:has-text("◈ Plan")');
+  await page.waitForSelector('.atlas-mode-pill--plan');
+  await page.fill('.atlas-plan input.atlas-input', 'Doomed idea');
+  await page.waitForTimeout(200);
+  await page.click('button:has-text("Abandon plan")'); // confirm auto-accepted
+  await page.waitForTimeout(400);
+  expect((await page.locator('.atlas-mode-pill--plan').count()) === 0, 'plan mode did not exit');
+  await page.keyboard.press('Control+k');
+  await page.fill('.atlas-palette-modal__input', 'Doomed');
+  await page.waitForTimeout(250);
+  expect(
+    (await page.locator('.atlas-command:has-text("Doomed")').count()) === 0,
+    'abandoned plan still listed in ⌘K',
+  );
+  await page.keyboard.press('Escape');
+  const kept = await page.evaluate(() =>
+    [...window.__store.plans.values()].some((p) => p.status === 'abandoned'),
+  );
+  expect(kept, 'abandoned plan file should stay on disk');
+});
+
+/* ---------------------------- F. chrome & docs ---------------------------- */
 
 section = 'chrome & docs';
 await fresh();

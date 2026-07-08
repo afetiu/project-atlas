@@ -22,6 +22,7 @@ interface PlanPanelProps {
   onRationale: (text: string) => void;
   onGenerateAdr: () => void;
   onBuild: () => void;
+  onAbandon: () => void;
   onFocusNode: (id: string) => void;
   onOpenFile: (path: string) => void;
 }
@@ -44,6 +45,7 @@ export function PlanPanel({
   onRationale,
   onGenerateAdr,
   onBuild,
+  onAbandon,
   onFocusNode,
   onOpenFile,
 }: PlanPanelProps): JSX.Element {
@@ -216,6 +218,17 @@ export function PlanPanel({
           title="Open the decision record"
         >
           ✓ Decision record written — {adrPath}
+        </button>
+      )}
+
+      {plan.status !== 'applied' && (
+        <button
+          type="button"
+          className="atlas-plan__abandon"
+          onClick={onAbandon}
+          title="Mark this plan abandoned — it leaves your plan list but stays on disk"
+        >
+          Abandon plan
         </button>
       )}
       </div>
