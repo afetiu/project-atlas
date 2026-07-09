@@ -13,6 +13,11 @@
     "url": "https://github.com/afetiu/project-atlas/issues"
   },
   "homepage": "https://github.com/afetiu/project-atlas#readme",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#16130f",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
