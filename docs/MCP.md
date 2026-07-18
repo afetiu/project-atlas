@@ -1,10 +1,11 @@
 # Atlas MCP Server
 
 Atlas ships a [Model Context Protocol](https://modelcontextprotocol.io) server
-that exposes the live architecture map (`atlas.yaml`) to MCP clients — most
-usefully, your existing **Claude Code**. With it connected, you can read and
-edit the architecture from a normal Claude Code session, and the changes appear
-on the Atlas canvas immediately (Atlas watches `atlas.yaml`).
+that exposes the live architecture map (`atlas.yaml`) to any MCP client —
+Claude Code, Cursor's agent, Windsurf, the Gemini CLI, or Codex. With it
+connected, your agent can read and edit the architecture from its normal
+workflow, and the changes appear on the Atlas canvas immediately (Atlas watches
+`atlas.yaml`).
 
 ## Why
 
@@ -20,7 +21,17 @@ From a workspace that has Atlas installed, run the command:
 Atlas: Register MCP Server
 ```
 
-This writes (or merges into) `.mcp.json` at the workspace root:
+Pick the clients you use; Atlas writes (or merges into) each one's config:
+
+| Client | Config written | Scope |
+| --- | --- | --- |
+| Claude Code | `.mcp.json` | workspace |
+| Cursor | `.cursor/mcp.json` | workspace |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | global (points at this workspace) |
+| Gemini CLI | `.gemini/settings.json` | workspace |
+| Codex CLI | `~/.codex/config.toml` | global (points at this workspace) |
+
+The JSON entry looks like:
 
 ```json
 {
@@ -34,7 +45,15 @@ This writes (or merges into) `.mcp.json` at the workspace root:
 }
 ```
 
-Restart Claude Code so it picks up the new server. Confirm it loaded with `/mcp`.
+Existing servers and settings in each file are preserved; re-running the
+command updates Atlas's entry in place. Restart the client so it picks up the
+new server (in Claude Code, confirm with `/mcp`).
+
+## Without the extension (headless)
+
+The same server ships as an npm package for terminal-only setups and CI — see
+`packages/atlas-architecture-mcp/`: `npx` the server into any MCP client config
+and run `atlas check` as a PR gate without VS Code installed.
 
 ## Tools
 

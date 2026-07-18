@@ -57,7 +57,7 @@
       },
       {
         "command": "atlas.registerMcpServer",
-        "title": "Register MCP Server for Claude Code",
+        "title": "Register MCP Server (Claude Code, Cursor, Windsurf, Gemini, Codex)",
         "category": "Atlas"
       },
       {
