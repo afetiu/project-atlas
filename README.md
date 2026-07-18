@@ -64,17 +64,29 @@ read and write.
 
 ## How AI is wired in
 
-Atlas talks to Claude two complementary ways:
+Atlas's native AI (Detect, chat, Apply → code) runs on **one of two engines**,
+picked automatically per job:
 
-| Layer | Powers | Mechanism |
+| Engine | When | Mechanism |
 | --- | --- | --- |
-| **Atlas-native AI** | In-canvas *Detect*, *chat*, and *Apply → code* | [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) in the extension host |
-| **MCP server** | Your existing Claude Code reading/editing the map | An MCP stdio server over `atlas.yaml` |
+| **Claude Code** | The `claude` CLI is installed (best experience — reuses your login) | [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk/overview) in the extension host |
+| **Built-in loop** | You stored an **Anthropic, OpenAI, or Gemini API key** — no CLI needed | Atlas's own agent loop; tools execute in the extension host |
 
-The Agent SDK runs the agentic loop (read the repo, return structured JSON, edit
-files); the MCP server is a second door into the same `atlas.yaml`. Because both
-write the one file, and Atlas watches that file, every change — wherever it comes
-from — shows up live on the canvas.
+This is what makes the AI features work in **Cursor** and any other VS Code
+fork: bring an API key from the provider of your choice
+(`Atlas: Set AI API Key`) and every button works. Pin an engine explicitly with
+the `atlas.provider` setting; pick models with `atlas.model`,
+`atlas.openai.model`, or `atlas.gemini.model`.
+
+Separately, the **MCP server** exposes the live map so your existing agent
+(Claude Code, Cursor, …) can read and edit the architecture from its own
+workflow. Because everything writes the one `atlas.yaml`, and Atlas watches
+that file, every change — wherever it comes from — shows up live on the canvas.
+
+> **Data disclosure:** the AI features send repository content (file listings
+> and the files the model chooses to read) to the configured AI provider
+> (Anthropic, OpenAI, or Google). Nothing is sent except when you explicitly
+> run an AI action.
 
 ---
 
@@ -83,9 +95,11 @@ from — shows up live on the canvas.
 ### Prerequisites
 
 - [Node.js](https://nodejs.org) 18+ and npm
-- [VS Code](https://code.visualstudio.com) 1.85+
-- The [`claude` CLI](https://code.claude.com/docs) installed and logged in
-  **or** an Anthropic API key (for the AI features)
+- [VS Code](https://code.visualstudio.com) 1.85+ (or Cursor)
+- For the AI features, one of:
+  - the [`claude` CLI](https://code.claude.com/docs) installed and logged in, or
+  - an **Anthropic**, **OpenAI**, or **Gemini** API key (stored via
+    `Atlas: Set AI API Key`)
 
 ### Install & build
 
@@ -105,9 +119,11 @@ npm run build
 ### Authentication
 
 Atlas prefers your existing Claude Code login (no setup needed if you're already
-logged in). To use an explicit key instead, run **`Atlas: Set Anthropic API
-Key`** — it's stored in VS Code SecretStorage. You can also pin a model or a
-`claude` path in **Settings → Atlas**.
+logged in). Without the `claude` CLI — for example in Cursor — run
+**`Atlas: Set AI API Key`** and store a key for Anthropic, OpenAI, or Gemini;
+keys live in VS Code SecretStorage. `atlas.provider` picks the engine (`auto`
+prefers Claude Code, then the first configured key); you can also pin models or
+a `claude` path in **Settings → Atlas**.
 
 ---
 

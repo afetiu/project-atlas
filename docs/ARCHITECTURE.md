@@ -65,9 +65,14 @@ the same core powers the extension, the React app, and a separate Node process.
 | `workspace/AtlasFileService.ts` | Reads/writes `atlas.yaml`, watches external edits, suppresses write-echo. |
 | `workspace/BaselineStore.ts` | The code-synced model; its diff vs the live model = pending changes. |
 | `workspace/git.ts` | Captures the working-tree diff after code generation. |
-| `ai/ClaudeAgent.ts` | Wraps the Agent SDK `query()` loop with detect/chat/generate methods. |
-| `ai/AuthProvider.ts` | Resolves a stored API key or falls back to the Claude Code login. |
-| `ai/prompts.ts` | Prompt builders for the three jobs. |
+| `ai/agent.ts` | The provider-neutral `ArchitectureAgent` contract (detect/chat/generate + events + errors). |
+| `ai/agentFactory.ts` | Per-job engine resolution: `atlas.provider` setting, claude CLI probe, key fallback. |
+| `ai/ClaudeSdkAgent.ts` | Engine 1 — wraps the Claude Agent SDK `query()` loop (uses the `claude` CLI). |
+| `ai/loop/BuiltinLoopAgent.ts` | Engine 2 — Atlas's own agent loop over any `LlmClient`; no CLI needed. |
+| `ai/providers/*` | `LlmClient` implementations: Anthropic, OpenAI, Gemini (BYO API key). |
+| `ai/tools/*` | Host-executed tools for the built-in loop: Read/Glob/Grep + guarded Write/Edit. |
+| `ai/AuthProvider.ts` | Per-provider keys in SecretStorage, env fallbacks, model settings. |
+| `ai/prompts.ts` | Prompt builders for the three jobs, shared by both engines. |
 
 ### `webview/` — the React canvas
 
@@ -103,10 +108,14 @@ edit on disk → FileSystemWatcher → AtlasFileService (echo check)
             → onDidChangeExternally → read() → model:loaded → webview
 ```
 
+Every AI job starts with `resolveAgent()` picking an engine (Claude Agent SDK
+or the built-in loop with the configured provider); the flows below are
+engine-agnostic.
+
 **Detect:**
 
 ```
-Detect → ai:detect → ClaudeAgent.detect() [Agent SDK: Read/Glob/Grep, structured JSON]
+Detect → ai:detect → agent.detect() [Read/Glob/Grep, structured JSON]
        → detectedToModel() (normalize + layout) → write atlas.yaml + set baseline
        → model:loaded → canvas
 ```
@@ -114,7 +123,7 @@ Detect → ai:detect → ClaudeAgent.detect() [Agent SDK: Read/Glob/Grep, struct
 **Chat:**
 
 ```
-chat:send → ClaudeAgent.chat() [structured: reply + optional full target graph]
+chat:send → agent.chat() [structured: reply + optional full target graph]
          → chat:reply (+ proposal) → Assistant panel → user clicks Apply
 ```
 
@@ -123,15 +132,18 @@ chat:send → ClaudeAgent.chat() [structured: reply + optional full target graph
 ```
 apply:request(target) → write atlas.yaml + model:loaded
                       → delta = diff(baseline, target)
-                      → ClaudeAgent.generateCode() [Agent SDK: Read/Edit/Write only,
-                          NO shell, writes confined to the workspace via canUseTool]
+                      → agent.generateCode() [Read/Edit/Write only, NO shell,
+                          writes confined to the workspace]
                       → git diff (scoped to touched files)
                       → verifyCodegen() [mapped paths exist + optional verify command]
                       → advance baseline ONLY if verified → apply:done → DiffOverlay
 ```
 
-Code generation is sandboxed: shell is disabled and a `canUseTool` gate confines
-writes to the workspace, so every effect is inside the repo and revertable. The
+Code generation is sandboxed identically on both engines: no shell, and writes
+are confined to the workspace — via the SDK's `canUseTool` gate on the Claude
+Code path, and via host-executed tools (the loop simply has no shell tool and
+routes Write/Edit through the same symlink-aware containment check) on the
+built-in path. Every effect is inside the repo and revertable. The
 baseline advances only when the generated code is verified to realize the
 change; otherwise it stays pending and the report says what's missing — this is
 what keeps "the model is the source of truth" honest.
@@ -153,11 +165,18 @@ meaningful and keeps code generation scoped to real architectural deltas.
 
 Researched against the current docs:
 
-- **Agent SDK** (`@anthropic-ai/claude-agent-sdk`) powers Atlas's own AI. It is
-  ESM-only and uses `import.meta.url`, so it is **not bundled** — it is marked
-  external and loaded via dynamic `import()`. It spawns the `claude` executable,
-  which means it transparently reuses the user's Claude Code login when no API
-  key is set.
+- **Two engines, one contract.** `ArchitectureAgent` has two implementations.
+  `ClaudeSdkAgent` (the Agent SDK) is preferred when the `claude` CLI exists —
+  it reuses the Claude Code login. `BuiltinLoopAgent` runs Atlas's own tool
+  loop against a direct provider API (Anthropic `claude-opus-4-8`, OpenAI,
+  or Gemini) with a BYO key — this is what powers the AI buttons in Cursor and
+  other environments without Claude Code. `atlas.provider` controls selection;
+  `auto` prefers the CLI, then the first stored key.
+- **Agent SDK** (`@anthropic-ai/claude-agent-sdk`) is ESM-only and uses
+  `import.meta.url`, so it is **not bundled** — it is marked external and loaded
+  via dynamic `import()`. The three provider SDKs (`@anthropic-ai/sdk`,
+  `openai`, `@google/genai`) are plain CJS-compatible and **are bundled** into
+  `dist/extension.js`.
 - **MCP server** exposes the map to the user's Claude Code. Bundled separately as
   ESM (`dist/mcp-server.mjs`) with a `require()` shim for its CJS dependencies.
 - **Not used:** driving the Claude Code extension directly (no public API) and

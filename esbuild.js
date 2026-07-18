@@ -37,6 +37,9 @@ const extensionConfig = {
     // ESM MCP client used by McpBridge; spawns server subprocesses. Loaded via
     // dynamic import() at runtime, so keep it external and ship it in the VSIX.
     '@modelcontextprotocol/sdk',
+    // NOT external (bundled by design): the direct-API provider SDKs
+    // (@anthropic-ai/sdk, openai, @google/genai) are plain CJS-compatible and
+    // ship inside dist/extension.js.
   ],
 };
 
