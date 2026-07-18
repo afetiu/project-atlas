@@ -28,7 +28,8 @@ import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/dif
 import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
 import { applyLayout, deserializeModel } from '../../shared/serialization/yaml';
-import { AiError, type AgentEvent, type ArchitectureAgent } from '../ai/agent';
+import { AiError, type AgentEvent } from '../ai/agent';
+import type { AgentResolution } from '../ai/agentFactory';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
@@ -56,7 +57,8 @@ import { buildWebviewHtml } from './webviewHtml';
 export interface PanelDependencies {
   extensionUri: vscode.Uri;
   fileService: AtlasFileService;
-  agent: ArchitectureAgent;
+  /** Resolved per AI job so provider/setting changes apply without a reload. */
+  resolveAgent: () => Promise<AgentResolution>;
   baseline: BaselineStore;
   workspaceFolder: vscode.WorkspaceFolder;
   cwd: string;
@@ -341,12 +343,14 @@ export class ArchitecturePanel {
     if (!this.begin('detect', label)) {
       return;
     }
-    this.deps.logger.info(`Detection started (${label}).`);
     try {
+      const { agent, label: engine } = await this.deps.resolveAgent();
+      this.post({ type: 'ai:status', busy: true, job: 'detect', label: `${label} · ${engine}` });
+      this.deps.logger.info(`Detection started (${label}) via ${engine}.`);
       // Preserve the current layout so re-running detection doesn't reshuffle
       // the canvas — only the architecture content is refreshed.
       const { model: previous } = await this.deps.fileService.read();
-      const model = await this.deps.agent.detect(
+      const model = await agent.detect(
         this.deps.cwd,
         (event) => this.relay('detect', event),
         this.abortController!,
@@ -577,8 +581,10 @@ export class ArchitecturePanel {
       return;
     }
     try {
+      const { agent, label: engine } = await this.deps.resolveAgent();
+      this.post({ type: 'ai:status', busy: true, job: 'chat', label: `Thinking… · ${engine}` });
       const { model } = await this.deps.fileService.read();
-      const response = await this.deps.agent.chat(
+      const response = await agent.chat(
         this.deps.cwd,
         model,
         history,
@@ -641,8 +647,12 @@ export class ArchitecturePanel {
         return;
       }
 
-      this.deps.logger.info(`Code generation started for ${summarizeDelta(delta).length} change(s).`);
-      const result = await this.deps.agent.generateCode(
+      const { agent, label: engine } = await this.deps.resolveAgent();
+      this.post({ type: 'ai:status', busy: true, job: 'codegen', label: `Generating code… · ${engine}` });
+      this.deps.logger.info(
+        `Code generation started for ${summarizeDelta(delta).length} change(s) via ${engine}.`,
+      );
+      const result = await agent.generateCode(
         this.deps.cwd,
         delta,
         target,
