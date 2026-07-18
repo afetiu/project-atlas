@@ -28,7 +28,7 @@ import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/dif
 import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
 import { applyLayout, deserializeModel } from '../../shared/serialization/yaml';
-import { AiError, ClaudeAgent, type AgentEvent } from '../ai/ClaudeAgent';
+import { AiError, type AgentEvent, type ArchitectureAgent } from '../ai/agent';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
@@ -56,7 +56,7 @@ import { buildWebviewHtml } from './webviewHtml';
 export interface PanelDependencies {
   extensionUri: vscode.Uri;
   fileService: AtlasFileService;
-  agent: ClaudeAgent;
+  agent: ArchitectureAgent;
   baseline: BaselineStore;
   workspaceFolder: vscode.WorkspaceFolder;
   cwd: string;

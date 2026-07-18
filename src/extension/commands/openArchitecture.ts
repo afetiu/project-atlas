@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 
 import { AuthProvider } from '../ai/AuthProvider';
-import { ClaudeAgent } from '../ai/ClaudeAgent';
+import { ClaudeSdkAgent } from '../ai/ClaudeSdkAgent';
 import type { Logger } from '../log';
 import { ArchitecturePanel } from '../panel/ArchitecturePanel';
 import { AtlasFileService } from '../workspace/AtlasFileService';
@@ -31,7 +31,7 @@ export function openArchitecture(context: vscode.ExtensionContext, logger: Logge
   ArchitecturePanel.createOrShow({
     extensionUri: context.extensionUri,
     fileService: new AtlasFileService(workspaceFolder),
-    agent: new ClaudeAgent(auth),
+    agent: new ClaudeSdkAgent(auth),
     baseline: new BaselineStore(context.workspaceState, workspaceFolder),
     workspaceFolder,
     cwd: workspaceFolder.uri.fsPath,

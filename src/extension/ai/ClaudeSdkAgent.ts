@@ -18,6 +18,12 @@ import { parseChatReply, type ChatResponse, type ChatTurn } from '../../shared/a
 import type { ModelDelta } from '../../shared/model/diff';
 import type { ArchitectureModel } from '../../shared/model/types';
 import { resolveWithinRoot } from '../workspace/paths';
+import {
+  AiError,
+  type AgentEventHandler,
+  type ArchitectureAgent,
+  type CodegenResult,
+} from './agent';
 import type { AuthProvider } from './AuthProvider';
 import { buildChatSystemPrompt, buildCodegenPrompt, buildDetectionPrompt } from './prompts';
 
@@ -51,30 +57,7 @@ function startWatchdog(controller: AbortController, ms: number): () => void {
   return () => clearTimeout(timer);
 }
 
-export type AgentEvent =
-  | { kind: 'status'; text: string }
-  | { kind: 'assistant'; text: string }
-  | { kind: 'tool'; name: string; detail: string };
-
-export type AgentEventHandler = (event: AgentEvent) => void;
-
-export type AiErrorCode = 'auth' | 'cancelled' | 'failed';
-
-export class AiError extends Error {
-  constructor(public readonly code: AiErrorCode, message: string) {
-    super(message);
-    this.name = 'AiError';
-  }
-}
-
-export interface CodegenResult {
-  summary: string;
-  sessionId?: string;
-  /** Files the agent created or edited, for an optional revert. */
-  touchedFiles: string[];
-}
-
-export class ClaudeAgent {
+export class ClaudeSdkAgent implements ArchitectureAgent {
   constructor(private readonly auth: AuthProvider) {}
 
   /** Analyze a repository and return a normalized, laid-out architecture model. */
