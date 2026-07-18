@@ -10,3 +10,4 @@ out/
 # Local review artifacts (Lavish)
 .lavish/
 *.vsix
+packages/*/dist/

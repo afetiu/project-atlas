@@ -1,0 +1,37 @@
+{
+  "name": "atlas-architecture-mcp",
+  "version": "0.2.0",
+  "description": "Headless Atlas: the MCP server and rules CLI for the Atlas architecture workspace — use atlas.yaml from Claude Code, Cursor, Windsurf, Gemini CLI, or Codex without VS Code installed.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/afetiu/project-atlas.git",
+    "directory": "packages/atlas-architecture-mcp"
+  },
+  "homepage": "https://github.com/afetiu/project-atlas#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "architecture",
+    "atlas",
+    "diagram",
+    "ai"
+  ],
+  "type": "module",
+  "bin": {
+    "atlas-mcp": "bin/atlas-mcp.mjs",
+    "atlas-check": "bin/atlas-check.mjs",
+    "atlas-diff": "bin/atlas-diff.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "prepublishOnly": "node ../../scripts/build-npm-package.mjs"
+  }
+}
