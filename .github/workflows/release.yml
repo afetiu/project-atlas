@@ -1,0 +1,66 @@
+name: Release
+
+# Tag a version (e.g. `git tag v0.2.0 && git push --tags`) to build, verify,
+# and publish everywhere at once:
+#   - VS Code Marketplace   (needs repo secret VSCE_PAT — Azure DevOps PAT)
+#   - Open VSX (Cursor etc.) (needs repo secret OVSX_PAT)
+#   - npm: atlas-architecture-mcp (needs repo secret NPM_TOKEN)
+#   - GitHub release with the VSIX attached
+# Each publish step is skipped (not failed) while its secret is missing, so
+# the workflow is safe to run before all accounts exist.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Package VSIX
+        run: npx --yes @vscode/vsce package --out atlas.vsix
+
+      - name: Publish to VS Code Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx --yes @vscode/vsce publish --packagePath atlas.vsix -p "$VSCE_PAT"
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx publish atlas.vsix -p "$OVSX_PAT"
+
+      - name: Publish atlas-architecture-mcp to npm
+        if: env.NPM_TOKEN != ''
+        working-directory: packages/atlas-architecture-mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          node ../../scripts/build-npm-package.mjs
+          npm publish --access public
+
+      - name: GitHub release with VSIX
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" atlas.vsix \
+            --title "Atlas ${GITHUB_REF_NAME}" \
+            --notes "See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)."

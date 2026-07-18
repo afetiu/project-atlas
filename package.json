@@ -1,9 +1,9 @@
 {
   "name": "atlas",
-  "displayName": "Atlas",
-  "description": "A visual architecture workspace where the architecture model is the source of truth.",
-  "version": "0.1.0",
-  "publisher": "atlas",
+  "displayName": "Atlas — Architecture Workspace",
+  "description": "A visual architecture workspace where the architecture model is the source of truth. AI maps your repo, you reshape it on a canvas, agents keep code and architecture in sync.",
+  "version": "0.2.0",
+  "publisher": "afetiu",
   "license": "MIT",
   "repository": {
     "type": "git",

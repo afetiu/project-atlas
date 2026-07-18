@@ -1,6 +1,8 @@
 # Atlas
 
-**A visual architecture workspace for VS Code where the architecture model is the source of truth — and code becomes a generated artifact.**
+**A visual architecture workspace for VS Code and Cursor where the architecture model is the source of truth — and code becomes a generated artifact.**
+
+![The Atlas canvas: bounded contexts, typed components, protocol-labelled connections, and the live inspector](https://raw.githubusercontent.com/afetiu/project-atlas/main/media/screenshot-canvas.png)
 
 Atlas is not a diagramming tool. It is an editable "map of the world" for your
 system: AI generates it from your real repository, you reshape it visually or by
@@ -101,20 +103,29 @@ that file, every change — wherever it comes from — shows up live on the canv
   - an **Anthropic**, **OpenAI**, or **Gemini** API key (stored via
     `Atlas: Set AI API Key`)
 
-### Install & build
+### Install
+
+Install **Atlas — Architecture Workspace** from the VS Code Marketplace (or
+Open VSX in Cursor), then:
+
+1. Open your project folder.
+2. Run **`Atlas: Open Architecture`** from the Command Palette.
+3. Click **Detect from code** to generate the map — or drag components from the
+   palette to draw one by hand.
+
+<details>
+<summary>Running from source instead</summary>
 
 ```bash
 npm install
 npm run build
 ```
 
-### Run it
+Open this folder in VS Code and press <kbd>F5</kbd> (**Run Atlas Extension**),
+then open a project folder in the Extension Development Host window. See
+[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md).
 
-1. Open this folder in VS Code and press <kbd>F5</kbd> (**Run Atlas Extension**).
-2. In the Extension Development Host window, open a project folder.
-3. Run **`Atlas: Open Architecture`** from the Command Palette.
-4. Click **Detect from code** to generate the map — or drag components from the
-   palette to draw one by hand.
+</details>
 
 ### Authentication
 
