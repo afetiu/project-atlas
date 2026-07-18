@@ -82,7 +82,7 @@ test('detects a group rename/description update', () => {
   const delta = diffModels(a, b);
   assert.equal(isEmptyDelta(delta), false);
   assert.deepEqual(delta.updatedGroups[0].changes.sort(), ['description', 'name']);
-  assert.ok(summarizeDelta(delta).some((l) => /Update bounded context/.test(l)));
+  assert.ok(summarizeDelta(delta).some((l) => /Update context/.test(l)));
 });
 
 test('detects group changes and membership moves', () => {
@@ -91,5 +91,5 @@ test('detects group changes and membership moves', () => {
   const delta = diffModels(a, b);
   assert.equal(delta.addedGroups[0].id, 'orders');
   assert.deepEqual(delta.updatedNodes[0].changes, ['group']);
-  assert.ok(summarizeDelta(delta).some((l) => /Add bounded context/.test(l)));
+  assert.ok(summarizeDelta(delta).some((l) => /Add context/.test(l)));
 });

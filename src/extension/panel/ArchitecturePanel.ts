@@ -33,7 +33,7 @@ import type { AgentResolution } from '../ai/agentFactory';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
-import { AtlasFileService } from '../workspace/AtlasFileService';
+import { AtlasFileService, AtlasWriteConflictError } from '../workspace/AtlasFileService';
 import { RepoWatcher } from '../workspace/RepoWatcher';
 import { computeDrift } from '../workspace/drift';
 import { getFileAtCommit, getFileHistory, getHeadCommit, getWorkingTreeDiff, revertFiles } from '../workspace/git';
@@ -47,6 +47,7 @@ import {
   assessPlan,
   deserializePlan,
   planFileName,
+  planProgress,
   renderAdr,
   serializePlan,
   type Plan,
@@ -186,6 +187,9 @@ export class ArchitecturePanel {
         break;
       case 'plan:load':
         await this.runPlanLoad(message.file);
+        break;
+      case 'plan:rename':
+        await this.runPlanRename(message.from, message.to, message.plan);
         break;
       case 'plan:adr':
         await this.runPlanAdr(message.file, message.plan);
@@ -390,6 +394,14 @@ export class ArchitecturePanel {
 
   private async pushPlanEntries(): Promise<void> {
     const plans: PlanSummary[] = [];
+    // Decided plans report how much of them is built, measured against the
+    // architecture the codebase currently realizes.
+    let current: import('../../shared/model/types').ArchitectureModel | null = null;
+    try {
+      current = (await this.deps.fileService.read()).model;
+    } catch {
+      // unreadable atlas.yaml — entries still list, just without progress
+    }
     try {
       const entries = await vscode.workspace.fs.readDirectory(this.plansDirUri());
       for (const [name, kind] of entries) {
@@ -401,7 +413,19 @@ export class ArchitecturePanel {
             vscode.Uri.joinPath(this.plansDirUri(), name),
           );
           const plan = deserializePlan(new TextDecoder().decode(bytes));
-          plans.push({ file: name, name: plan.name, status: plan.status, createdAt: plan.createdAt });
+          const progress =
+            plan.baseline && current
+              ? (({ done, total }) => ({ done, total }))(
+                  planProgress(plan.baseline, plan.target, current),
+                )
+              : undefined;
+          plans.push({
+            file: name,
+            name: plan.name,
+            status: plan.status,
+            createdAt: plan.createdAt,
+            ...(progress && progress.total > 0 ? { progress } : {}),
+          });
         } catch {
           // unreadable plan — skip
         }
@@ -447,6 +471,35 @@ export class ArchitecturePanel {
     }
   }
 
+  /**
+   * Move a plan to a new file (a named draft shedding its "untitled" slug).
+   * Content-carrying: the new file is written from the message before the old
+   * one is removed, so the move can never lose the plan.
+   */
+  private async runPlanRename(from: string, to: string, plan: Plan): Promise<void> {
+    const source = this.planUri(from);
+    const target = this.planUri(to);
+    if (!source || !target || source.toString() === target.toString()) {
+      return;
+    }
+    try {
+      await vscode.workspace.fs.createDirectory(this.plansDirUri());
+      await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(plan)));
+      try {
+        await vscode.workspace.fs.delete(source);
+      } catch {
+        // old file already gone — the write above is what matters
+      }
+      const base = target.path.split('/').pop()!;
+      this.deps.logger.info(`Plan renamed: atlas/plans/${from} → atlas/plans/${base}.`);
+      this.post({ type: 'plan:saved', file: base });
+      await this.pushPlanEntries();
+    } catch (error) {
+      this.deps.logger.error(`Plan rename failed: ${String(error)}`);
+      this.post({ type: 'model:error', message: 'Atlas could not rename the plan file.' });
+    }
+  }
+
   /** Write the plan's decision record into docs/adr/ and mark the plan decided. */
   private async runPlanAdr(file: string, plan: Plan): Promise<void> {
     const target = this.planUri(file);
@@ -474,7 +527,9 @@ export class ArchitecturePanel {
       const markdown = renderAdr({ number: next, plan, base, assessment });
       await vscode.workspace.fs.writeFile(adrUri, new TextEncoder().encode(markdown));
 
-      const decided: Plan = { ...plan, status: 'decided' };
+      // Freeze the baseline with the decision: it defines what this plan
+      // changed, so progress toward the target stays measurable from here on.
+      const decided: Plan = { ...plan, status: 'decided', baseline: base };
       await vscode.workspace.fs.writeFile(target, new TextEncoder().encode(serializePlan(decided)));
 
       const path = `docs/adr/${adrName}`;
@@ -737,6 +792,19 @@ export class ArchitecturePanel {
     try {
       await this.deps.fileService.write(model);
     } catch (error) {
+      if (error instanceof AtlasWriteConflictError) {
+        // Someone else (another window, git, a hand edit) changed atlas.yaml
+        // since we read it. Reload their version rather than clobbering it,
+        // then say plainly what happened to the edit that lost the race.
+        this.deps.logger.info('Write conflict on atlas.yaml — reloading the on-disk version.');
+        await this.pushModelToWebview(true);
+        this.post({
+          type: 'model:error',
+          message:
+            'atlas.yaml changed outside this window, so the latest version was reloaded. Your last edit was not saved — redo it on the current map.',
+        });
+        return;
+      }
       this.deps.logger.error(`Failed to save atlas.yaml: ${String(error)}`);
       this.post({
         type: 'model:error',

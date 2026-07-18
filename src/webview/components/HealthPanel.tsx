@@ -1,29 +1,80 @@
 /**
- * The Insights panel: Atlas's architecture-intelligence view. Shows a health
- * grade, key coupling metrics, and a ranked list of structural findings
- * (cycles, layering violations, over-coupled components). Clicking a finding
- * focuses the implicated component on the canvas.
+ * The Health panel — ONE place for "what's wrong (and right) with my
+ * architecture". It leads with the health grade and key metrics, then lists
+ * every finding in severity order regardless of what produced it: custom
+ * rule violations and the structural analyzer's insights are the same kind of
+ * thing to the person reading them. Clicking a finding flies to the culprit.
  */
 
 import { useMemo } from 'react';
 
-import { analyzeArchitecture, sortInsights, type InsightSeverity } from '../../shared/model/insights';
+import {
+  sortInsights,
+  type ArchitectureReport,
+  type InsightSeverity,
+} from '../../shared/model/insights';
 import type { ArchitectureModel } from '../../shared/model/types';
+import type { RuleSeverity, RuleViolation } from '../../shared/rules/rules';
 
-interface InsightsPanelProps {
+interface HealthPanelProps {
   model: ArchitectureModel;
+  /** Computed once in App (it also feeds the tab badge). */
+  report: ArchitectureReport;
+  violations: RuleViolation[];
   onFocusNode: (id: string) => void;
+  onSelectEdge: (id: string) => void;
 }
 
-const SEVERITY_LABEL: Record<InsightSeverity, string> = {
-  critical: 'Critical',
+interface Finding {
+  key: string;
+  severity: RuleSeverity;
+  heading: string;
+  message: string;
+  onClick?: () => void;
+}
+
+const SEVERITY_LABEL: Record<RuleSeverity, string> = {
+  error: 'Error',
   warning: 'Warning',
-  info: 'Info',
+  info: 'Suggestion',
 };
 
-export function InsightsPanel({ model, onFocusNode }: InsightsPanelProps): JSX.Element {
-  const report = useMemo(() => analyzeArchitecture(model), [model]);
-  const insights = useMemo(() => sortInsights(report.insights), [report.insights]);
+const SEVERITY_RANK: Record<RuleSeverity, number> = { error: 0, warning: 1, info: 2 };
+
+function toRuleSeverity(severity: InsightSeverity): RuleSeverity {
+  return severity === 'critical' ? 'error' : severity === 'warning' ? 'warning' : 'info';
+}
+
+export function HealthPanel({
+  model,
+  report,
+  violations,
+  onFocusNode,
+  onSelectEdge,
+}: HealthPanelProps): JSX.Element {
+  const findings = useMemo<Finding[]>(() => {
+    const fromInsights: Finding[] = sortInsights(report.insights).map((insight) => ({
+      key: `insight-${insight.id}`,
+      severity: toRuleSeverity(insight.severity),
+      heading: `${SEVERITY_LABEL[toRuleSeverity(insight.severity)]} · ${insight.title}`,
+      message: insight.detail,
+      onClick: insight.nodeIds[0] ? () => onFocusNode(insight.nodeIds[0]) : undefined,
+    }));
+    const fromRules: Finding[] = violations.map((violation, index) => ({
+      key: `rule-${violation.ruleId}-${index}`,
+      severity: violation.severity,
+      heading: SEVERITY_LABEL[violation.severity],
+      message: violation.message,
+      onClick: violation.nodeId
+        ? () => onFocusNode(violation.nodeId as string)
+        : violation.edgeId
+          ? () => onSelectEdge(violation.edgeId as string)
+          : undefined,
+    }));
+    return [...fromRules, ...fromInsights].sort(
+      (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+    );
+  }, [report.insights, violations, onFocusNode, onSelectEdge]);
 
   if (model.nodes.length === 0) {
     return (
@@ -78,25 +129,23 @@ export function InsightsPanel({ model, onFocusNode }: InsightsPanelProps): JSX.E
       )}
 
       <div className="atlas-insights__findings">
-        {insights.length === 0 ? (
-          <div className="atlas-insights__clean">✓ No structural risks found.</div>
+        {findings.length === 0 ? (
+          <div className="atlas-insights__clean">✓ No findings — rules pass, structure is clean.</div>
         ) : (
-          insights.map((insight) => (
+          findings.map((finding) => (
             <button
-              key={insight.id}
+              key={finding.key}
               type="button"
               className="atlas-issue"
-              onClick={() => insight.nodeIds[0] && onFocusNode(insight.nodeIds[0])}
+              onClick={finding.onClick}
             >
               <span
-                className={`atlas-issue__dot atlas-issue__dot--${dotClass(insight.severity)}`}
+                className={`atlas-issue__dot atlas-issue__dot--${finding.severity}`}
                 aria-hidden="true"
               />
               <span className="atlas-issue__body">
-                <span className="atlas-issue__severity">
-                  {SEVERITY_LABEL[insight.severity]} · {insight.title}
-                </span>
-                <span className="atlas-issue__message">{insight.detail}</span>
+                <span className="atlas-issue__severity">{finding.heading}</span>
+                <span className="atlas-issue__message">{finding.message}</span>
               </span>
             </button>
           ))
@@ -115,12 +164,8 @@ function Metric({ label, value }: { label: string; value: string }): JSX.Element
   );
 }
 
-function dotClass(severity: InsightSeverity): string {
-  return severity === 'critical' ? 'error' : severity === 'warning' ? 'warning' : 'info';
-}
-
 function pickByInstability(
-  report: ReturnType<typeof analyzeArchitecture>,
+  report: ArchitectureReport,
   dir: 'min' | 'max',
 ): { id: string } | null {
   let best: { id: string; instability: number } | null = null;

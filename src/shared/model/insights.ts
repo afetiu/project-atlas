@@ -87,7 +87,7 @@ export function analyzeArchitecture(model: ArchitectureModel): ArchitectureRepor
       id: `context-cycle:${cycle.join('>')}`,
       kind: 'context-cycle',
       severity: 'warning',
-      title: 'Bounded contexts depend on each other',
+      title: 'Contexts depend on each other',
       detail: `${cycle.map((g) => `"${groupName.get(g) ?? g}"`).join(' ↔ ')} are mutually dependent.`,
       nodeIds: model.nodes.filter((n) => n.groupId && cycle.includes(n.groupId)).map((n) => n.id),
     });

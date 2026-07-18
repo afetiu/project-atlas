@@ -156,13 +156,13 @@ export function summarizeDelta(delta: ModelDelta): string[] {
     }
   }
   for (const group of delta.addedGroups) {
-    lines.push(`Add bounded context "${group.name}" (${group.id})`);
+    lines.push(`Add context "${group.name}" (${group.id})`);
   }
   for (const group of delta.removedGroups) {
-    lines.push(`Remove bounded context "${group.name}" (${group.id})`);
+    lines.push(`Remove context "${group.name}" (${group.id})`);
   }
   for (const { after, changes } of delta.updatedGroups) {
-    lines.push(`Update bounded context "${after.name}" (${after.id}): ${changes.join(', ')}`);
+    lines.push(`Update context "${after.name}" (${after.id}): ${changes.join(', ')}`);
   }
   return lines;
 }

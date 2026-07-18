@@ -72,7 +72,7 @@ function NodeInspector({
   const nodeDocs = docs.docs.filter((d) => d.componentId === node.id);
   return (
     <div className="atlas-inspector__content">
-      <Header title="Node" subtitle={node.id} />
+      <Header title="Component" subtitle={node.id} />
 
       <Field label="Name">
         <input
@@ -100,7 +100,7 @@ function NodeInspector({
         </select>
       </Field>
 
-      <Field label="Bounded context">
+      <Field label="Context">
         <select
           className="atlas-input"
           value={node.groupId ?? ''}
@@ -173,7 +173,7 @@ function NodeInspector({
         className="atlas-button atlas-button--danger"
         onClick={() => onDeleteNode(node.id)}
       >
-        Delete node
+        Delete component
       </button>
     </div>
   );
@@ -273,7 +273,7 @@ function GroupInspector({
 
   return (
     <div className="atlas-inspector__content">
-      <Header title="Bounded context" subtitle={group.id} />
+      <Header title="Context" subtitle={group.id} />
 
       <Field label="Name">
         <input
@@ -306,7 +306,7 @@ function GroupInspector({
           className="atlas-input atlas-textarea"
           value={group.description ?? ''}
           rows={4}
-          placeholder="What does this bounded context own?"
+          placeholder="What does this context own?"
           onChange={(event) => onUpdateGroup(group.id, { description: event.target.value })}
         />
       </Field>

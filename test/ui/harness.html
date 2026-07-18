@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<!--
+  UI verification harness.
+
+  Loads the built webview bundle (dist/webview.js + dist/webview.css) with a
+  stubbed `acquireVsCodeApi` that plays the extension host: it serves a fixture
+  architecture, an in-memory plans directory, a docs catalogue, and atlas.yaml
+  history, and it records every message the webview posts (window.__store).
+  `scripts/verify-ui.mjs` drives this page headless and asserts on both the DOM
+  and the recorded message traffic.
+
+  View state persists through localStorage so reload-persistence is testable.
+-->
+<html>
+<head>
+<meta charset="utf-8"/>
+<link rel="stylesheet" href="../../dist/webview.css"/>
+<style>html,body{margin:0;height:100%;background:#131110}#root{height:100vh}</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const NOW = {"version":1,"nodes":[
+  {"description":"","id":"web","name":"Web App","type":"frontend","groupId":"edge","mapping":{"path":"apps/web"},"position":{"x":134,"y":134}},
+  {"description":"","id":"gw","name":"API Gateway","type":"service","groupId":"edge","mapping":{"path":"svc/gw"},"position":{"x":460,"y":134}},
+  {"description":"","id":"orders","name":"Orders Service","type":"service","groupId":"ord","mapping":{"path":"svc/orders"},"position":{"x":908,"y":134}},
+  {"description":"","id":"inv","name":"Inventory Service","type":"service","groupId":"ord","position":{"x":908,"y":242}},
+  {"description":"","id":"db","name":"Orders DB","type":"database","groupId":"ord","position":{"x":1234,"y":188}},
+  {"description":"","id":"pay","name":"Payments","type":"externalApi","position":{"x":1560,"y":134}}
+],"edges":[
+  {"id":"e1","source":"web","target":"gw","protocol":"http"},
+  {"id":"e2","source":"gw","target":"orders","protocol":"grpc"},
+  {"id":"e3","source":"orders","target":"db","protocol":"http"},
+  {"id":"e4","source":"gw","target":"inv","protocol":"grpc"},
+  {"id":"e5","source":"inv","target":"db","protocol":"http"},
+  {"id":"e6","source":"orders","target":"pay","protocol":"http"}
+],"groups":[
+  {"id":"edge","name":"Edge","color":"#c89b6c"},
+  {"id":"ord","name":"Orders","color":"#7fa98c"}
+]};
+const PAST = {"version":1,"nodes":NOW.nodes.slice(0,3).map(n=>({...n})),"edges":NOW.edges.slice(0,2),"groups":NOW.groups};
+const DOCS = [
+  {"path":"README.md","title":"Project Atlas Demo","excerpt":"A demo commerce platform.","headings":[{"depth":1,"text":"Project Atlas Demo"}]},
+  {"path":"svc/orders/README.md","title":"Orders Service","excerpt":"Owns the order lifecycle.","componentId":"orders","headings":[{"depth":1,"text":"Orders Service"}]}
+];
+const HIST = [
+  {"sha":"c3","date":"2026-07-07 14:20:00 +0000","summary":"Add payments + inventory"},
+  {"sha":"c1","date":"2026-06-21 17:45:00 +0000","summary":"First map"}
+];
+const DOC_MD = "# Orders Service\n\nOwns the order lifecycle.\n\n## API\n\n| Endpoint | Method |\n| --- | --- |\n| /orders | POST |\n";
+
+function push(x){ window.dispatchEvent(new MessageEvent("message", { data: x })); }
+window.__pushHost = push;
+
+const store = { plans: new Map(), posted: [], model: NOW };
+window.__store = store;
+// Minimal stand-in for the host's progress computation (adds + renames only —
+// enough for the fixtures this harness serves).
+function calcProgress(p) {
+  if (!p.baseline) return undefined;
+  const cur = new Map(store.model.nodes.map((n) => [n.id, n]));
+  const base = new Map(p.baseline.nodes.map((n) => [n.id, n]));
+  const items = [];
+  for (const n of p.target.nodes) {
+    const b = base.get(n.id);
+    if (!b) items.push(cur.has(n.id));
+    else if (b.name !== n.name) items.push(cur.get(n.id)?.name === n.name);
+  }
+  return items.length > 0 ? { done: items.filter(Boolean).length, total: items.length } : undefined;
+}
+const entries = () => [...store.plans.entries()]
+  .map(([file, p]) => {
+    const progress = calcProgress(p);
+    return { file, name: p.name, status: p.status, createdAt: p.createdAt, ...(progress ? { progress } : {}) };
+  })
+  .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+window.acquireVsCodeApi = () => ({
+  postMessage: (m) => {
+    if (!m || !m.type) return;
+    store.posted.push(m);
+    if (m.type === "webview:ready") setTimeout(() => push({ type: "model:loaded", model: store.model }), 20);
+    if (m.type === "model:changed") store.model = m.model;
+    if (m.type === "docs:scan") setTimeout(() => push({ type: "docs:list", docs: DOCS }), 60);
+    if (m.type === "docs:read") setTimeout(() => push({ type: "docs:content", path: m.path, text: DOC_MD }), 60);
+    if (m.type === "history:list") setTimeout(() => push({ type: "history:entries", entries: HIST }), 60);
+    if (m.type === "history:load") setTimeout(() => push({ type: "model:loaded", model: m.sha === "c3" ? store.model : PAST }), 60);
+    if (m.type === "history:exit") setTimeout(() => push({ type: "model:loaded", model: store.model }), 40);
+    if (m.type === "plan:list") setTimeout(() => push({ type: "plan:entries", plans: entries() }), 40);
+    if (m.type === "plan:save") {
+      store.plans.set(m.file, m.plan);
+      setTimeout(() => { push({ type: "plan:saved", file: m.file }); push({ type: "plan:entries", plans: entries() }); }, 40);
+    }
+    if (m.type === "plan:load") {
+      const p = store.plans.get(m.file);
+      if (p) setTimeout(() => push({ type: "plan:loaded", file: m.file, plan: p }), 50);
+    }
+    if (m.type === "plan:rename") {
+      store.plans.delete(m.from);
+      store.plans.set(m.to, m.plan);
+      setTimeout(() => { push({ type: "plan:saved", file: m.to }); push({ type: "plan:entries", plans: entries() }); }, 40);
+    }
+    if (m.type === "plan:adr") {
+      // Like the real host: deciding freezes the current model as the baseline.
+      store.plans.set(m.file, { ...m.plan, status: "decided", baseline: store.model });
+      const slug = m.file.replace(/\.yaml$/, "");
+      setTimeout(() => {
+        push({ type: "plan:adrSaved", file: m.file, path: `docs/adr/adr-001-${slug}.md` });
+        push({ type: "plan:entries", plans: entries() });
+      }, 60);
+    }
+    if (m.type === "apply:request") {
+      store.model = m.model;
+      setTimeout(() => push({ type: "model:loaded", model: m.model }), 50);
+      // Like the real host: code generation completes and verifies.
+      setTimeout(() => push({ type: "apply:done", summary: "Generated.", diff: "", revertable: true, verification: { ok: true, checks: [] } }), 200);
+    }
+  },
+  getState: () => { try { return JSON.parse(localStorage.getItem("atlas-harness-state") ?? "null") ?? undefined; } catch { return undefined; } },
+  setState: (s) => { try { localStorage.setItem("atlas-harness-state", JSON.stringify(s)); } catch { /* ignore */ } },
+});
+</script>
+<script src="../../dist/webview.js"></script>
+</body>
+</html>

@@ -6,13 +6,15 @@
  * becomes a decision record (ADR) or a build.
  */
 
-import type { Plan, PlanAssessment } from '../../shared/plans/plan';
+import type { Plan, PlanAssessment, PlanProgress } from '../../shared/plans/plan';
 
 interface PlanPanelProps {
   file: string;
   plan: Plan;
   /** Live assessment against the real model; null until the baseline is known. */
   assessment: PlanAssessment | null;
+  /** Decided plans: how much of the plan the codebase has built so far. */
+  progress: PlanProgress | null;
   /** Workspace-relative path of the generated ADR, once one exists. */
   adrPath: string | null;
   nameOf: (nodeId: string) => string;
@@ -20,6 +22,7 @@ interface PlanPanelProps {
   onRationale: (text: string) => void;
   onGenerateAdr: () => void;
   onBuild: () => void;
+  onAbandon: () => void;
   onFocusNode: (id: string) => void;
   onOpenFile: (path: string) => void;
 }
@@ -35,12 +38,14 @@ export function PlanPanel({
   file,
   plan,
   assessment,
+  progress,
   adrPath,
   nameOf,
   onRename,
   onRationale,
   onGenerateAdr,
   onBuild,
+  onAbandon,
   onFocusNode,
   onOpenFile,
 }: PlanPanelProps): JSX.Element {
@@ -80,11 +85,52 @@ export function PlanPanel({
         />
       </label>
 
-      {!hasChanges && (
+      {!hasChanges && !progress && (
         <div className="atlas-plan__hint">
           Sketch the proposal on the map — add, rewire, or regroup components. The
           assessment appears here as you go. atlas.yaml stays untouched.
         </div>
+      )}
+
+      {progress && progress.total > 0 && (
+        <section className="atlas-plan__section" aria-label="Build progress">
+          <div className="atlas-plan__progress-head">
+            <span className="atlas-field__label">Built</span>
+            <span className="atlas-plan__progress-count">
+              {progress.done}/{progress.total}
+              {progress.done === progress.total ? ' — complete' : ''}
+            </span>
+          </div>
+          <div
+            className="atlas-plan__bar"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={progress.total}
+            aria-valuenow={progress.done}
+          >
+            <div
+              className="atlas-plan__bar-fill"
+              style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
+            />
+          </div>
+          <ul className="atlas-plan__checklist">
+            {progress.items.map((item) => (
+              <li key={item.label}>
+                <button
+                  type="button"
+                  className={`atlas-plan__task${item.done ? ' atlas-plan__task--done' : ''}`}
+                  onClick={item.nodeId ? () => onFocusNode(item.nodeId as string) : undefined}
+                  title={item.done ? 'Built' : 'Not built yet'}
+                >
+                  <span className="atlas-plan__task-mark" aria-hidden="true">
+                    {item.done ? '✓' : '○'}
+                  </span>
+                  {item.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {assessment && hasChanges && (
@@ -172,6 +218,17 @@ export function PlanPanel({
           title="Open the decision record"
         >
           ✓ Decision record written — {adrPath}
+        </button>
+      )}
+
+      {plan.status !== 'applied' && (
+        <button
+          type="button"
+          className="atlas-plan__abandon"
+          onClick={onAbandon}
+          title="Mark this plan abandoned — it leaves your plan list but stays on disk"
+        >
+          Abandon plan
         </button>
       )}
       </div>

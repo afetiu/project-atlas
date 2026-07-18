@@ -1,7 +1,11 @@
 /**
- * Top-bar AI actions: detect from code, apply pending architecture changes, and
+ * Top-bar actions: map the repository, apply pending architecture changes, and
  * a busy/cancel indicator. Kept presentational — all behaviour is delegated to
  * callbacks supplied by the App.
+ *
+ * There is ONE verb for getting a map — "Map from code" (instant, static).
+ * AI enrichment lives behind ⌘K ("Detect with AI") and the empty state, so
+ * two near-synonymous buttons never compete for the same intent.
  */
 
 import type { AiStatus } from '../model/useAiSession';
@@ -13,7 +17,7 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onDetect: () => void;
+  onMapFromCode: () => void;
   onApplyPending: () => void;
   onCancel: () => void;
 }
@@ -25,7 +29,7 @@ export function Toolbar({
   canRedo,
   onUndo,
   onRedo,
-  onDetect,
+  onMapFromCode,
   onApplyPending,
   onCancel,
 }: ToolbarProps): JSX.Element {
@@ -78,10 +82,10 @@ export function Toolbar({
           <button
             type="button"
             className="atlas-button atlas-button--small"
-            onClick={onDetect}
-            title="Analyze the repository and generate the architecture map"
+            onClick={onMapFromCode}
+            title="Derive the map from the code's imports — instant, no AI. For AI enrichment, run “Detect with AI” from ⌘K."
           >
-            Detect from code
+            Map from code
           </button>
         </>
       )}

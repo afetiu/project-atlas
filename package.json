@@ -13,6 +13,11 @@
     "url": "https://github.com/afetiu/project-atlas/issues"
   },
   "homepage": "https://github.com/afetiu/project-atlas#readme",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#16130f",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -124,7 +129,7 @@
           "type": "object",
           "default": {},
           "scope": "machine-overridable",
-          "markdownDescription": "MCP servers Atlas can connect to, so a component bound to one becomes operable from the map. Each key is a server name (matched by a node's binding); the value is `{ \"command\": \"…\", \"args\": [\"…\"], \"env\": { … } }`. Example: `{ \"postgres\": { \"command\": \"npx\", \"args\": [\"-y\", \"@modelcontextprotocol/server-postgres\", \"postgres://…\"] } }`.",
+          "markdownDescription": "MCP servers Atlas can connect to, so a component bound to one becomes operable from the map. Each key is a server name (matched by a node's binding); the value is `{ \"command\": \"\u2026\", \"args\": [\"\u2026\"], \"env\": { \u2026 } }`. Example: `{ \"postgres\": { \"command\": \"npx\", \"args\": [\"-y\", \"@modelcontextprotocol/server-postgres\", \"postgres://\u2026\"] } }`.",
           "additionalProperties": {
             "type": "object",
             "properties": {
@@ -163,6 +168,7 @@
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "test": "node scripts/run-tests.mjs",
+    "test:ui": "node scripts/verify-ui.mjs",
     "check": "node dist/atlas-check.mjs",
     "diff": "node dist/atlas-diff.mjs",
     "lint": "eslint src --ext ts,tsx",
@@ -177,6 +183,7 @@
     "@typescript-eslint/parser": "^6.19.0",
     "esbuild": "^0.20.0",
     "eslint": "^8.56.0",
+    "playwright-core": "^1.61.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {
