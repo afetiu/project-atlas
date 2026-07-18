@@ -42,12 +42,12 @@
       },
       {
         "command": "atlas.setApiKey",
-        "title": "Set Anthropic API Key",
+        "title": "Set AI API Key (Anthropic / OpenAI / Gemini)",
         "category": "Atlas"
       },
       {
         "command": "atlas.clearApiKey",
-        "title": "Clear Anthropic API Key",
+        "title": "Clear AI API Key",
         "category": "Atlas"
       },
       {
@@ -64,10 +64,39 @@
     "configuration": {
       "title": "Atlas",
       "properties": {
+        "atlas.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "claude-code",
+            "anthropic",
+            "openai",
+            "gemini"
+          ],
+          "default": "auto",
+          "markdownDescription": "Which AI engine powers Detect, Chat, and Apply. `auto` prefers your Claude Code login (via the `claude` CLI) and falls back to the first provider with a stored API key (`Atlas: Set AI API Key`). `claude-code` forces the Claude Agent SDK; the rest force that provider's direct API.",
+          "enumDescriptions": [
+            "Claude Code login if the claude CLI is available, else the first configured API key",
+            "Claude Agent SDK via the claude CLI (Claude Code login or Anthropic key)",
+            "Anthropic API directly (needs an Anthropic key; no CLI required)",
+            "OpenAI API (needs an OpenAI key)",
+            "Google Gemini API (needs a Gemini key)"
+          ]
+        },
         "atlas.model": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Claude model id Atlas should use (e.g. `claude-opus-4-8`). Leave empty to use the Claude Code default."
+          "markdownDescription": "Claude model id Atlas should use (e.g. `claude-opus-4-8`). Applies to the Claude Code and Anthropic providers. Leave empty for the default."
+        },
+        "atlas.openai.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "OpenAI model id for the `openai` provider. Leave empty for Atlas's default."
+        },
+        "atlas.gemini.model": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Gemini model id for the `gemini` provider. Leave empty for Atlas's default."
         },
         "atlas.claudeExecutablePath": {
           "type": "string",

@@ -24,6 +24,9 @@ await esbuild.build({
   format: 'cjs',
   sourcemap: 'inline',
   logLevel: 'warning',
+  // Extension-host modules import `vscode`, which only exists inside VS Code.
+  // Tests get a seedable stub instead.
+  alias: { vscode: './test/helpers/vscodeStub.ts' },
 });
 
 const testFiles = readdirSync(OUT)

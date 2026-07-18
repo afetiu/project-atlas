@@ -8,7 +8,7 @@
 
 import * as vscode from 'vscode';
 
-import { AuthProvider } from '../ai/AuthProvider';
+import { AuthProvider, PROVIDER_LABELS, type AiProviderId } from '../ai/AuthProvider';
 import type { Logger } from '../log';
 import { ArchitecturePanel } from '../panel/ArchitecturePanel';
 import { openArchitecture } from './openArchitecture';
@@ -16,6 +16,26 @@ import { openArchitecture } from './openArchitecture';
 export const DETECT_COMMAND = 'atlas.detectArchitecture';
 export const SET_API_KEY_COMMAND = 'atlas.setApiKey';
 export const CLEAR_API_KEY_COMMAND = 'atlas.clearApiKey';
+
+const KEY_PLACEHOLDERS: Record<AiProviderId, string> = {
+  anthropic: 'sk-ant-…',
+  openai: 'sk-…',
+  gemini: 'AIza…',
+};
+
+/** Ask which provider a key operation applies to. */
+async function pickProvider(title: string): Promise<AiProviderId | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    (Object.keys(PROVIDER_LABELS) as AiProviderId[]).map((id) => ({
+      id,
+      label: PROVIDER_LABELS[id],
+      description:
+        id === 'anthropic' ? 'Optional if you are logged into Claude Code' : undefined,
+    })),
+    { title, ignoreFocusOut: true },
+  );
+  return picked?.id;
+}
 
 export function registerAiCommands(
   context: vscode.ExtensionContext,
@@ -32,28 +52,45 @@ export function registerAiCommands(
     }),
 
     vscode.commands.registerCommand(SET_API_KEY_COMMAND, async () => {
+      const provider = await pickProvider('Atlas — Set AI API Key');
+      if (!provider) {
+        return;
+      }
       const key = await vscode.window.showInputBox({
-        title: 'Atlas — Anthropic API Key',
-        prompt: 'Stored securely in VS Code. Leave empty to use your Claude Code login.',
+        title: `Atlas — ${PROVIDER_LABELS[provider]} API Key`,
+        prompt:
+          provider === 'anthropic'
+            ? 'Stored securely in VS Code. Leave empty to use your Claude Code login.'
+            : 'Stored securely in VS Code. Leave empty to remove the stored key.',
         password: true,
         ignoreFocusOut: true,
-        placeHolder: 'sk-ant-…',
+        placeHolder: KEY_PLACEHOLDERS[provider],
       });
       if (key === undefined) {
         return;
       }
       if (key.trim().length === 0) {
-        await auth.clearApiKey();
-        void vscode.window.showInformationMessage('Atlas will use your Claude Code login.');
+        await auth.clearApiKey(provider);
+        void vscode.window.showInformationMessage(
+          provider === 'anthropic'
+            ? 'Atlas will use your Claude Code login.'
+            : `Atlas ${PROVIDER_LABELS[provider]} key removed.`,
+        );
         return;
       }
-      await auth.setApiKey(key);
-      void vscode.window.showInformationMessage('Atlas API key saved.');
+      await auth.setApiKey(provider, key);
+      void vscode.window.showInformationMessage(`Atlas ${PROVIDER_LABELS[provider]} key saved.`);
     }),
 
     vscode.commands.registerCommand(CLEAR_API_KEY_COMMAND, async () => {
-      await auth.clearApiKey();
-      void vscode.window.showInformationMessage('Atlas API key cleared.');
+      const provider = await pickProvider('Atlas — Clear AI API Key');
+      if (!provider) {
+        return;
+      }
+      await auth.clearApiKey(provider);
+      void vscode.window.showInformationMessage(
+        `Atlas ${PROVIDER_LABELS[provider]} key cleared.`,
+      );
     }),
   ];
 }
