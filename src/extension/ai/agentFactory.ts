@@ -8,7 +8,7 @@
  */
 
 import { existsSync } from 'fs';
-import { delimiter, join } from 'path';
+import { delimiter, dirname, join } from 'path';
 
 import * as vscode from 'vscode';
 
@@ -52,18 +52,37 @@ export function findClaudeCli(
   platform: NodeJS.Platform = process.platform,
 ): string | undefined {
   if (explicitPath) {
-    return existsSync(explicitPath) ? explicitPath : undefined;
+    return existsSync(explicitPath) ? spawnablePath(explicitPath, platform) : undefined;
   }
   const names = platform === 'win32' ? ['claude.exe', 'claude.cmd', 'claude.ps1'] : ['claude'];
   for (const dir of (envPath ?? '').split(delimiter).filter(Boolean)) {
     for (const name of names) {
       const candidate = join(dir, name);
       if (existsSync(candidate)) {
-        return candidate;
+        const spawnable = spawnablePath(candidate, platform);
+        if (spawnable) {
+          return spawnable;
+        }
+        // An unresolvable shim in this dir — keep probing later PATH entries.
       }
     }
   }
   return undefined;
+}
+
+/**
+ * Node refuses to spawn `.cmd`/`.ps1` files directly (EINVAL, CVE-2024-27980
+ * hardening), so an npm-installed `claude` shim cannot be handed to the Agent
+ * SDK as-is. Resolve through the shim to the real JS entry point — the SDK
+ * runs `.js` paths via Node itself. Real executables pass through unchanged.
+ */
+function spawnablePath(candidate: string, platform: NodeJS.Platform): string | undefined {
+  if (platform !== 'win32' || !/\.(cmd|ps1|bat)$/i.test(candidate)) {
+    return candidate;
+  }
+  // npm shim layout: <dir>/claude.cmd wraps <dir>/node_modules/@anthropic-ai/claude-code/cli.js
+  const cliJs = join(dirname(candidate), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+  return existsSync(cliJs) ? cliJs : undefined;
 }
 
 /** Boolean convenience over {@link findClaudeCli}. */

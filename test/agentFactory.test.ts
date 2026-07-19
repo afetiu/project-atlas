@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { AiError } from '../src/extension/ai/agent';
-import { claudeCliAvailable, decideEngine } from '../src/extension/ai/agentFactory';
+import { claudeCliAvailable, decideEngine, findClaudeCli } from '../src/extension/ai/agentFactory';
 import type { AiProviderId } from '../src/extension/ai/AuthProvider';
 
 function keys(...configured: AiProviderId[]) {
@@ -102,6 +102,39 @@ describe('claudeCliAvailable', () => {
       assert.equal(claudeCliAvailable(undefined, dir, process.platform), true);
       assert.equal(claudeCliAvailable(undefined, join(dir, 'nope'), process.platform), false);
       assert.equal(claudeCliAvailable(undefined, undefined, process.platform), claudeCliAvailable(undefined));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('findClaudeCli on Windows', () => {
+  // Node cannot spawn .cmd/.ps1 directly (EINVAL) — the factory must resolve
+  // npm shims to the real cli.js, and skip shims it cannot resolve.
+  it('resolves an npm claude.cmd shim to the underlying cli.js', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-'));
+    try {
+      const cliJs = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+      mkdirSync(join(dir, 'node_modules', '@anthropic-ai', 'claude-code'), { recursive: true });
+      writeFileSync(join(dir, 'claude.cmd'), '@echo off\r\n');
+      writeFileSync(cliJs, '// cli\n');
+
+      assert.equal(findClaudeCli(undefined, dir, 'win32'), cliJs);
+      assert.equal(findClaudeCli(join(dir, 'claude.cmd'), undefined, 'win32'), cliJs);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats an unresolvable shim as no CLI, and passes real executables through', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-'));
+    try {
+      writeFileSync(join(dir, 'claude.cmd'), '@echo off\r\n');
+      assert.equal(findClaudeCli(undefined, dir, 'win32'), undefined);
+
+      const exe = join(dir, 'claude.exe');
+      writeFileSync(exe, '');
+      assert.equal(findClaudeCli(undefined, dir, 'win32'), exe);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
