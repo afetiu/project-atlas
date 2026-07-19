@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    Atlas mark: the letter A drawn as an architecture graph — four copper nodes
+    joined by roads, sitting on the night-chart water with a district plate and
+    a faint compass ring (the atlas heritage). Same palette as the canvas:
+    warm charcoal + copper ink. No SaaS blue.
+  -->
+  <defs>
+    <radialGradient id="water" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#1e1a14"/>
+      <stop offset="55%" stop-color="#16130f"/>
+      <stop offset="100%" stop-color="#0e0c09"/>
+    </radialGradient>
+    <linearGradient id="copper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6b98c"/>
+      <stop offset="55%" stop-color="#c98e61"/>
+      <stop offset="100%" stop-color="#9a6b3f"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a98a5f"/>
+      <stop offset="100%" stop-color="#7d6c50"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c98e61" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#c98e61" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- night-chart water -->
+  <rect width="512" height="512" rx="100" fill="url(#water)"/>
+  <rect x="6" y="6" width="500" height="500" rx="94" fill="none" stroke="#342d23" stroke-width="2"/>
+
+  <!-- faint chart grid -->
+  <g stroke="#2b251c" stroke-width="1.5" opacity="0.5">
+    <path d="M128 40 V472 M256 30 V482 M384 40 V472"/>
+    <path d="M40 128 H472 M30 256 H482 M40 384 H472"/>
+  </g>
+
+  <!-- compass heritage: quiet ring + ticks -->
+  <g opacity="0.55">
+    <circle cx="256" cy="262" r="176" fill="none" stroke="#483e2f" stroke-width="2"/>
+    <g stroke="#877c68" stroke-width="3" stroke-linecap="round">
+      <path d="M256 78 v18"/>
+      <path d="M256 428 v18"/>
+      <path d="M72 262 h18"/>
+      <path d="M422 262 h18"/>
+    </g>
+  </g>
+
+  <!-- district plate under the base of the A -->
+  <rect x="118" y="292" width="276" height="112" rx="26"
+        fill="#242019" stroke="#483e2f" stroke-width="2.5" opacity="0.9"/>
+
+  <!-- apex glow -->
+  <circle cx="256" cy="140" r="86" fill="url(#glow)"/>
+
+  <!-- roads (edges of the A) -->
+  <g stroke="url(#road)" stroke-width="13" stroke-linecap="round" fill="none">
+    <path d="M256 140 L168 348"/>
+    <path d="M256 140 L344 348"/>
+    <path d="M168 348 L256 252"/>
+    <path d="M344 348 L256 252"/>
+  </g>
+
+  <!-- nodes -->
+  <g>
+    <!-- apex: the component in focus -->
+    <circle cx="256" cy="140" r="42" fill="url(#copper)"/>
+    <circle cx="256" cy="140" r="42" fill="none" stroke="#221408" stroke-opacity="0.35" stroke-width="2"/>
+    <circle cx="256" cy="140" r="15" fill="#221408"/>
+
+    <!-- crossbar hub -->
+    <circle cx="256" cy="252" r="30" fill="url(#copper)"/>
+    <circle cx="256" cy="252" r="11" fill="#221408"/>
+
+    <!-- base pair, seated on the district -->
+    <circle cx="168" cy="348" r="34" fill="url(#copper)"/>
+    <circle cx="168" cy="348" r="12" fill="#221408"/>
+    <circle cx="344" cy="348" r="34" fill="url(#copper)"/>
+    <circle cx="344" cy="348" r="12" fill="#221408"/>
+  </g>
+</svg>
