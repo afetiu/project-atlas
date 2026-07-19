@@ -58,6 +58,17 @@ export interface AiProgressMessage {
   line: string;
 }
 
+/**
+ * Which AI engine (if any) would power the next job — drives the first-open
+ * setup experience instead of letting users hit a raw error.
+ */
+export interface AiEngineMessage {
+  type: 'ai:engine';
+  configured: boolean;
+  /** Human-readable engine name when configured, e.g. "Claude Code". */
+  label?: string;
+}
+
 /** An AI job failed (or needs auth). */
 export interface AiErrorMessage {
   type: 'ai:error';
@@ -195,6 +206,7 @@ export type HostToWebviewMessage =
   | ModelErrorMessage
   | AiStatusMessage
   | AiProgressMessage
+  | AiEngineMessage
   | AiErrorMessage
   | ChatTokenMessage
   | ChatReplyMessage

@@ -58,7 +58,15 @@ function startWatchdog(controller: AbortController, ms: number): () => void {
 }
 
 export class ClaudeSdkAgent implements ArchitectureAgent {
-  constructor(private readonly auth: AuthProvider) {}
+  /**
+   * `executablePath` is the concrete `claude` binary the factory located. The
+   * SDK cannot find the CLI on PATH by itself, and its own bundled binary is
+   * not shipped in the VSIX, so this must always be passed when known.
+   */
+  constructor(
+    private readonly auth: AuthProvider,
+    private readonly executablePath?: string,
+  ) {}
 
   /** Analyze a repository and return a normalized, laid-out architecture model. */
   async detect(
@@ -213,7 +221,7 @@ export class ClaudeSdkAgent implements ArchitectureAgent {
   ): Promise<Options> {
     const env = await this.auth.buildEnv();
     const model = this.auth.resolveModel();
-    const executable = this.auth.resolveExecutablePath();
+    const executable = this.executablePath ?? this.auth.resolveExecutablePath();
     return {
       cwd,
       env,
@@ -272,6 +280,14 @@ export class ClaudeSdkAgent implements ArchitectureAgent {
       return new AiError('cancelled', 'Cancelled.');
     }
     const message = error instanceof Error ? error.message : String(error);
+    // The SDK's own advice ("reinstall without --omit=optional") is meaningless
+    // to an extension user — translate launch failures into Atlas's options.
+    if (/Native CLI binary|pathToClaudeCodeExecutable|spawn .*claude.* ENOENT/i.test(message)) {
+      return new AiError(
+        'auth',
+        'Atlas could not launch the claude CLI. Install Claude Code and sign in — or store an API key via "Atlas: Set AI API Key" and Atlas will call the API directly instead.',
+      );
+    }
     return new AiError('failed', `Claude run failed: ${message}`);
   }
 

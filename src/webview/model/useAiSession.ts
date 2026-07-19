@@ -51,8 +51,15 @@ export interface AiNotice {
   text: string;
 }
 
+/** Whether an AI engine is ready, and which — null until the host reports. */
+export interface AiEngineState {
+  configured: boolean;
+  label?: string;
+}
+
 export interface AiSession {
   status: AiStatus;
+  engine: AiEngineState | null;
   progress: string[];
   messages: ChatMessage[];
   pendingSummary: string[];
@@ -77,6 +84,7 @@ const MAX_PROGRESS_LINES = 40;
 
 export function useAiSession(): AiSession {
   const [status, setStatus] = useState<AiStatus>({ busy: false });
+  const [engine, setEngine] = useState<AiEngineState | null>(null);
   const [progress, setProgress] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [pendingSummary, setPendingSummary] = useState<string[]>([]);
@@ -106,6 +114,9 @@ export function useAiSession(): AiSession {
           break;
         case 'ai:progress':
           setProgress((prev) => [...prev, message.line].slice(-MAX_PROGRESS_LINES));
+          break;
+        case 'ai:engine':
+          setEngine({ configured: message.configured, label: message.label });
           break;
         case 'ai:error':
           // A user-initiated cancel isn't a failure — don't raise the red alarm
@@ -210,6 +221,7 @@ export function useAiSession(): AiSession {
 
   return {
     status,
+    engine,
     progress,
     messages,
     pendingSummary,

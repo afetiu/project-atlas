@@ -736,25 +736,36 @@ export function App(): JSX.Element {
             <div className="atlas-empty">
               <div className="atlas-empty__title">Design your architecture</div>
               <div className="atlas-empty__body">
-                Map an existing repository with AI, or start from a blank canvas.
+                Map an existing repository, or start from a blank canvas.
               </div>
               <div className="atlas-empty__actions">
                 <button
                   type="button"
                   className="atlas-button atlas-button--accent"
                   onClick={mapFromCode}
-                  title="Derive the map from the code's imports — instant, no AI"
+                  title="Derive the map from the code's imports — instant, no AI needed"
                 >
                   Map from code
                 </button>
-                <button
-                  type="button"
-                  className="atlas-button"
-                  onClick={ai.detect}
-                  title="Use AI to detect components and intent"
-                >
-                  Detect with AI
-                </button>
+                {ai.engine?.configured === false ? (
+                  <button
+                    type="button"
+                    className="atlas-button"
+                    onClick={ai.configureAuth}
+                    title="Add an API key (Anthropic, OpenAI, or Gemini) to unlock AI detection and the copilot"
+                  >
+                    Set up AI…
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="atlas-button"
+                    onClick={ai.detect}
+                    title="Use AI to detect components and intent"
+                  >
+                    Detect with AI
+                  </button>
+                )}
                 <button
                   type="button"
                   className="atlas-button"
@@ -770,6 +781,22 @@ export function App(): JSX.Element {
                   Add a component
                 </button>
               </div>
+              {ai.engine && (
+                <div className="atlas-empty__engine">
+                  {ai.engine.configured ? (
+                    <>
+                      <span className="atlas-empty__engine-dot atlas-empty__engine-dot--ok" /> AI
+                      ready · {ai.engine.label}
+                    </>
+                  ) : (
+                    <>
+                      <span className="atlas-empty__engine-dot" /> No AI configured yet — “Map from
+                      code” works without it. Add a Claude Code login or an API key to unlock
+                      detection and the copilot.
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </main>

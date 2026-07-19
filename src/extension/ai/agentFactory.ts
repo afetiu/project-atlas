@@ -40,20 +40,39 @@ const SETUP_GUIDANCE =
   'Atlas has no AI engine configured. Either install and log in to the claude CLI (Claude Code), ' +
   'or run "Atlas: Set AI API Key" to store an Anthropic, OpenAI, or Gemini key.';
 
-/** Is the `claude` executable reachable — explicitly configured or on PATH? */
+/**
+ * Locate the `claude` executable — explicitly configured or on PATH — and
+ * return its concrete path. The path is handed to the Agent SDK, which does
+ * not search PATH itself (its bundled binary is deliberately not shipped in
+ * the VSIX).
+ */
+export function findClaudeCli(
+  explicitPath: string | undefined,
+  envPath: string | undefined = process.env.PATH,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
+  if (explicitPath) {
+    return existsSync(explicitPath) ? explicitPath : undefined;
+  }
+  const names = platform === 'win32' ? ['claude.exe', 'claude.cmd', 'claude.ps1'] : ['claude'];
+  for (const dir of (envPath ?? '').split(delimiter).filter(Boolean)) {
+    for (const name of names) {
+      const candidate = join(dir, name);
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Boolean convenience over {@link findClaudeCli}. */
 export function claudeCliAvailable(
   explicitPath: string | undefined,
   envPath: string | undefined = process.env.PATH,
   platform: NodeJS.Platform = process.platform,
 ): boolean {
-  if (explicitPath) {
-    return existsSync(explicitPath);
-  }
-  const names = platform === 'win32' ? ['claude.exe', 'claude.cmd', 'claude.ps1'] : ['claude'];
-  return (envPath ?? '')
-    .split(delimiter)
-    .filter(Boolean)
-    .some((dir) => names.some((name) => existsSync(join(dir, name))));
+  return findClaudeCli(explicitPath, envPath, platform) !== undefined;
 }
 
 /**
@@ -103,15 +122,16 @@ export async function decideEngine(input: {
 /** Resolve the engine and construct the agent for one AI job. */
 export async function resolveAgent(auth: AuthProvider): Promise<AgentResolution> {
   const setting = vscode.workspace.getConfiguration('atlas').get<string>('provider') ?? 'auto';
+  const cliPath = findClaudeCli(auth.resolveExecutablePath());
   const engine = await decideEngine({
     setting,
-    cliAvailable: claudeCliAvailable(auth.resolveExecutablePath()),
+    cliAvailable: cliPath !== undefined,
     hasKey: async (provider) => (await auth.getApiKey(provider)) !== undefined,
     firstConfigured: () => auth.firstConfiguredProvider(),
   });
 
   if (engine === 'claude-code') {
-    return { agent: new ClaudeSdkAgent(auth), engine, label: ENGINE_LABELS[engine] };
+    return { agent: new ClaudeSdkAgent(auth, cliPath), engine, label: ENGINE_LABELS[engine] };
   }
 
   const key = await auth.getApiKey(engine);

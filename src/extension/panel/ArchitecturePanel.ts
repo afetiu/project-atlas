@@ -133,6 +133,7 @@ export class ArchitecturePanel {
         // The webview just (re)mounted with no state — always load, even if an
         // edit was recently in flight before a reload.
         await this.pushModelToWebview(true);
+        await this.pushEngineStatus();
         break;
       case 'model:changed':
         this.lastWebviewEditAt = Date.now();
@@ -159,6 +160,8 @@ export class ArchitecturePanel {
         break;
       case 'auth:configure':
         await vscode.commands.executeCommand('atlas.setApiKey');
+        // The user may have just unlocked an engine — refresh the setup state.
+        await this.pushEngineStatus();
         break;
       case 'open:file':
         if (typeof message.path === 'string') {
@@ -548,15 +551,16 @@ export class ArchitecturePanel {
    * bindings (see mergeExtraction), so the map stays in sync with the code.
    */
   private async runMapFromCode(): Promise<void> {
-    const root =
-      vscode.workspace.getConfiguration('atlas').get<string>('sourceRoot')?.trim() || 'src';
     this.post({ type: 'ai:status', busy: true, job: 'detect', label: 'Mapping from code…' });
     try {
-      const pattern = new vscode.RelativePattern(this.deps.workspaceFolder, `${root}/**/*.{ts,tsx,js,jsx,mjs,cjs}`);
-      const uris = await vscode.workspace.findFiles(
-        pattern,
-        '**/{node_modules,dist,dist-test,out,build,coverage}/**',
-      );
+      const located = await this.resolveSourceRoot();
+      if (!located) {
+        void vscode.window.showWarningMessage(
+          'Atlas found no JavaScript/TypeScript sources to map. "Map from code" reads JS/TS imports — for other languages, use "Detect with AI" instead.',
+        );
+        return;
+      }
+      const { root, uris } = located;
       const files = await Promise.all(
         uris
           .filter((uri) => !/\.d\.ts$|\.(test|spec)\./.test(uri.fsPath))
@@ -565,12 +569,6 @@ export class ArchitecturePanel {
             content: new TextDecoder().decode(await vscode.workspace.fs.readFile(uri)),
           })),
       );
-      if (files.length === 0) {
-        void vscode.window.showWarningMessage(
-          `Atlas found no source files under "${root}/". Set "atlas.sourceRoot" to your code's root.`,
-        );
-        return;
-      }
       const extracted = extractArchitecture(files, { sourceRoot: root, depth: 2 });
       const { model: current } = await this.deps.fileService.read();
       const merged = mergeExtraction(current, extracted);
@@ -589,6 +587,70 @@ export class ArchitecturePanel {
     } finally {
       this.post({ type: 'ai:status', busy: false });
     }
+  }
+
+  /** Tell the webview which engine (if any) would power the next AI job. */
+  private async pushEngineStatus(): Promise<void> {
+    try {
+      const { label } = await this.deps.resolveAgent();
+      this.post({ type: 'ai:engine', configured: true, label });
+    } catch {
+      this.post({ type: 'ai:engine', configured: false });
+    }
+  }
+
+  /**
+   * Find where the code lives — zero configuration required. An explicit
+   * `atlas.sourceRoot` wins when it has sources; otherwise common roots are
+   * probed, and as a last resort the top-level directory holding the most
+   * source files is used.
+   */
+  private async resolveSourceRoot(): Promise<{ root: string; uris: vscode.Uri[] } | null> {
+    const SOURCE_GLOB = '**/*.{ts,tsx,js,jsx,mjs,cjs}';
+    const EXCLUDES = '**/{node_modules,dist,dist-test,out,build,coverage,.next,.git}/**';
+    const findIn = (root: string) =>
+      vscode.workspace.findFiles(
+        new vscode.RelativePattern(this.deps.workspaceFolder, `${root}/${SOURCE_GLOB}`),
+        EXCLUDES,
+      );
+
+    const configured = vscode.workspace.getConfiguration('atlas').get<string>('sourceRoot')?.trim();
+    const candidates = [
+      ...new Set(
+        [configured, 'src', 'lib', 'app', 'apps', 'server', 'api', 'services', 'packages', 'client'].filter(
+          (c): c is string => !!c,
+        ),
+      ),
+    ];
+    for (const candidate of candidates) {
+      const uris = await findIn(candidate);
+      if (uris.length > 0) {
+        this.deps.logger.info(`Map from code: using source root "${candidate}".`);
+        return { root: candidate, uris };
+      }
+    }
+
+    // Unconventional layout: scan everything and take the top-level directory
+    // with the most source files.
+    const all = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(this.deps.workspaceFolder, SOURCE_GLOB),
+      EXCLUDES,
+    );
+    const byTopDir = new Map<string, vscode.Uri[]>();
+    for (const uri of all) {
+      const rel = relativePosix(this.deps.cwd, uri.fsPath);
+      const top = rel.includes('/') ? rel.slice(0, rel.indexOf('/')) : '';
+      if (!top) {
+        continue; // loose top-level files can't form a component root
+      }
+      byTopDir.set(top, [...(byTopDir.get(top) ?? []), uri]);
+    }
+    const best = [...byTopDir.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+    if (best) {
+      this.deps.logger.info(`Map from code: auto-detected source root "${best[0]}".`);
+      return { root: best[0], uris: best[1] };
+    }
+    return null;
   }
 
   /**

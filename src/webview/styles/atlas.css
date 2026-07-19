@@ -1888,6 +1888,30 @@ select.atlas-input {
   padding: 8px 16px;
 }
 
+/* First-open setup line: which AI engine (if any) powers the next job. */
+.atlas-empty__engine {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+  max-width: 46ch;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+.atlas-empty__engine-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+
+.atlas-empty__engine-dot--ok {
+  background: var(--accent);
+}
+
 /* Node issue badge now carries a glyph (not colour alone). */
 .atlas-node__badge {
   display: flex;
