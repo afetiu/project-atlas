@@ -11,6 +11,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactFlow, {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   MiniMap,
   type Connection,
@@ -524,6 +525,11 @@ export function ArchitectureCanvas({
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={2}
+        // Loose mode: a connection can start from either dot and drop anywhere
+        // near the other node — strict source→target handle aiming is far too
+        // fiddly for 9px dots. The radius makes drops snap from a distance.
+        connectionMode={ConnectionMode.Loose}
+        connectionRadius={48}
         // Shift is the path-tracing modifier. By default React Flow binds it
         // to box-selection, whose overlay swallows the click before the node
         // handler runs — so the selection box is disabled outright.

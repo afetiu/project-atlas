@@ -467,17 +467,28 @@ body {
 }
 
 .atlas-handle {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--bg);
   border: 1.5px solid var(--border-strong);
+  /* React Flow positions handles via transform — never override it here. */
   transition: border-color var(--transition), background var(--transition);
 }
 
+/* The visible dot stays small; the grab target must not. */
+.atlas-handle::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+}
+
 .atlas-node:hover .atlas-handle,
-.react-flow__handle-connecting .atlas-handle {
+.react-flow__handle-connecting.atlas-handle,
+.react-flow__handle-valid.atlas-handle {
   border-color: var(--node-accent, var(--accent));
+  background: var(--node-accent, var(--accent));
 }
 
 /* ---------------- Edges ---------------- */

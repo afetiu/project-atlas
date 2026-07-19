@@ -684,6 +684,38 @@ await check('docs tab lists the catalogue and opens the reader', async () => {
   await page.keyboard.press('Escape');
 });
 
+await check('dragging between nodes creates a connection (from either handle)', async () => {
+  await page.evaluate(() =>
+    window.__pushHost({
+      type: 'model:loaded',
+      model: {
+        version: 1,
+        nodes: [
+          { id: 'a', name: 'Alpha', type: 'service', description: '', position: { x: 120, y: 140 } },
+          { id: 'b', name: 'Beta', type: 'service', description: '', position: { x: 520, y: 140 } },
+        ],
+        edges: [],
+        groups: [],
+      },
+    }),
+  );
+  await page.waitForTimeout(400);
+  // Start the drag on Beta's LEFT (target) handle — the strict default mode
+  // silently rejected this, which is exactly the regression this guards.
+  const from = await page
+    .locator('.react-flow__node[data-id="b"] .react-flow__handle-left')
+    .boundingBox();
+  const toNode = await page.locator('.react-flow__node[data-id="a"]').boundingBox();
+  expect(!!from && !!toNode, 'handles not found');
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  // Drop near Alpha's right edge — connectionRadius should snap it home.
+  await page.mouse.move(toNode.x + toNode.width - 2, toNode.y + toNode.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  expect((await page.locator('.react-flow__edge').count()) === 1, 'edge was not created');
+});
+
 await check('empty map shows the getting-started actions', async () => {
   await page.evaluate(() =>
     window.__pushHost({ type: 'model:loaded', model: { version: 1, nodes: [], edges: [], groups: [] } }),
