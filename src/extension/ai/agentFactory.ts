@@ -54,17 +54,34 @@ export function findClaudeCli(
   if (explicitPath) {
     return existsSync(explicitPath) ? spawnablePath(explicitPath, platform) : undefined;
   }
-  const names = platform === 'win32' ? ['claude.exe', 'claude.cmd', 'claude.ps1'] : ['claude'];
-  for (const dir of (envPath ?? '').split(delimiter).filter(Boolean)) {
-    for (const name of names) {
-      const candidate = join(dir, name);
-      if (existsSync(candidate)) {
-        const spawnable = spawnablePath(candidate, platform);
-        if (spawnable) {
-          return spawnable;
-        }
-        // An unresolvable shim in this dir — keep probing later PATH entries.
+  const dirs = (envPath ?? '').split(delimiter).filter(Boolean);
+  // Two passes: a real executable anywhere on PATH beats an npm shim earlier
+  // on it — native installs are the healthy, self-updating ones.
+  if (platform === 'win32') {
+    for (const dir of dirs) {
+      const exe = join(dir, 'claude.exe');
+      if (existsSync(exe)) {
+        return exe;
       }
+    }
+    for (const dir of dirs) {
+      for (const name of ['claude.cmd', 'claude.ps1']) {
+        const candidate = join(dir, name);
+        if (existsSync(candidate)) {
+          const spawnable = spawnablePath(candidate, platform);
+          if (spawnable) {
+            return spawnable;
+          }
+          // Unresolvable shim — keep probing later PATH entries.
+        }
+      }
+    }
+    return undefined;
+  }
+  for (const dir of dirs) {
+    const candidate = join(dir, 'claude');
+    if (existsSync(candidate)) {
+      return candidate;
     }
   }
   return undefined;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 
 import { AiError } from '../src/extension/ai/agent';
 import { claudeCliAvailable, decideEngine, findClaudeCli } from '../src/extension/ai/agentFactory';
@@ -146,6 +146,26 @@ describe('findClaudeCli on Windows', () => {
       assert.equal(findClaudeCli(undefined, dir, 'win32'), exe);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers a real claude.exe later on PATH over an earlier npm shim', () => {
+    const base = mkdtempSync(join(tmpdir(), 'atlas-order-'));
+    try {
+      const shimDir = join(base, 'npm');
+      const exeDir = join(base, 'native');
+      mkdirSync(join(shimDir, 'node_modules', '@anthropic-ai', 'claude-code'), { recursive: true });
+      mkdirSync(exeDir, { recursive: true });
+      writeFileSync(join(shimDir, 'claude.cmd'), '@echo off\r\n');
+      writeFileSync(join(shimDir, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'), '//\n');
+      const exe = join(exeDir, 'claude.exe');
+      writeFileSync(exe, '');
+
+      // Shim dir first on PATH — the native exe must still win.
+      const envPath = [shimDir, exeDir].join(delimiter);
+      assert.equal(findClaudeCli(undefined, envPath, 'win32'), exe);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
     }
   });
 });
