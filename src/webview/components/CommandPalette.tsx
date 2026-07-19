@@ -32,7 +32,6 @@ interface CommandPaletteProps {
   onFocusNode: (id: string) => void;
   onAddNode: (type: NodeTypeId) => void;
   onDetect: () => void;
-  onMapFromCode: () => void;
   onArrange: () => void;
   onTimelapse: () => void;
   onNewPlan: () => void;
@@ -46,7 +45,6 @@ export function CommandPalette({
   onFocusNode,
   onAddNode,
   onDetect,
-  onMapFromCode,
   onArrange,
   onTimelapse,
   onNewPlan,
@@ -64,7 +62,6 @@ export function CommandPalette({
   // never bury the actions under fifty component rows.
   const items = useMemo<CommandItem[]>(() => {
     const actions: CommandItem[] = [
-      { id: 'map-code', section: 'Actions', label: 'Map from code', hint: 'Static', run: onMapFromCode },
       { id: 'detect', section: 'Actions', label: 'Detect with AI', hint: 'AI', run: onDetect },
       { id: 'arrange', section: 'Actions', label: 'Arrange as map', hint: 'Layout', run: onArrange },
       { id: 'timelapse', section: 'Actions', label: 'Time-lapse', hint: 'History', run: onTimelapse },
@@ -97,7 +94,7 @@ export function CommandPalette({
     const all = [...actions, ...planItems, ...nodes];
     const q = query.trim().toLowerCase();
     return q ? all.filter((item) => item.label.toLowerCase().includes(q)) : all;
-  }, [model.nodes, plans, query, onAddNode, onDetect, onMapFromCode, onFocusNode, onArrange, onTimelapse, onNewPlan, onOpenPlan]);
+  }, [model.nodes, plans, query, onAddNode, onDetect, onFocusNode, onArrange, onTimelapse, onNewPlan, onOpenPlan]);
 
   // Keep the active index in range as the list shrinks.
   useEffect(() => setActive(0), [query]);

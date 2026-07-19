@@ -350,7 +350,6 @@ export function App(): JSX.Element {
   }, []);
 
   const openFile = useCallback((path: string) => postToHost({ type: 'open:file', path }), []);
-  const mapFromCode = useCallback(() => postToHost({ type: 'code:map' }), []);
 
   // Focus mode: sail into one district; Esc (or the pill) sails back out.
   const focusGroup = useCallback(
@@ -557,7 +556,7 @@ export function App(): JSX.Element {
           canRedo={api.canRedo}
           onUndo={api.undo}
           onRedo={api.redo}
-          onMapFromCode={mapFromCode}
+          onDetect={ai.detect}
           onApplyPending={requestApplyPending}
           onCancel={ai.cancel}
         />
@@ -739,18 +738,10 @@ export function App(): JSX.Element {
                 Map an existing repository, or start from a blank canvas.
               </div>
               <div className="atlas-empty__actions">
-                <button
-                  type="button"
-                  className="atlas-button atlas-button--accent"
-                  onClick={mapFromCode}
-                  title="Derive the map from the code's imports — instant, no AI needed"
-                >
-                  Map from code
-                </button>
                 {ai.engine?.configured === false ? (
                   <button
                     type="button"
-                    className="atlas-button"
+                    className="atlas-button atlas-button--accent"
                     onClick={ai.configureAuth}
                     title="Add an API key (Anthropic, OpenAI, or Gemini) to unlock AI detection and the copilot"
                   >
@@ -759,9 +750,9 @@ export function App(): JSX.Element {
                 ) : (
                   <button
                     type="button"
-                    className="atlas-button"
+                    className="atlas-button atlas-button--accent"
                     onClick={ai.detect}
-                    title="Use AI to detect components and intent"
+                    title="Let AI map this repository — components, connections, and intent"
                   >
                     Detect with AI
                   </button>
@@ -790,9 +781,9 @@ export function App(): JSX.Element {
                     </>
                   ) : (
                     <>
-                      <span className="atlas-empty__engine-dot" /> No AI configured yet — “Map from
-                      code” works without it. Add a Claude Code login or an API key to unlock
-                      detection and the copilot.
+                      <span className="atlas-empty__engine-dot" /> No AI configured yet — add a
+                      Claude Code login or an API key to unlock AI mapping and the copilot. You can
+                      still design by hand.
                     </>
                   )}
                 </div>
@@ -949,10 +940,6 @@ export function App(): JSX.Element {
           }}
           onDetect={() => {
             ai.detect();
-            setPaletteOpen(false);
-          }}
-          onMapFromCode={() => {
-            mapFromCode();
             setPaletteOpen(false);
           }}
           onArrange={() => {

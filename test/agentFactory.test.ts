@@ -126,6 +126,15 @@ describe('findClaudeCli on Windows', () => {
     }
   });
 
+  it('claude-code is skippable for launch-failure fallback', async () => {
+    // The panel retries a failed Claude Code launch on a configured provider by
+    // resolving with the CLI masked out.
+    assert.equal(
+      await decideEngine({ setting: 'auto', cliAvailable: false, ...keys('anthropic') }),
+      'anthropic',
+    );
+  });
+
   it('treats an unresolvable shim as no CLI, and passes real executables through', () => {
     const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-'));
     try {

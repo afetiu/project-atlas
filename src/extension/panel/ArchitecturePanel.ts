@@ -28,8 +28,8 @@ import { diffModels, isEmptyDelta, summarizeDelta } from '../../shared/model/dif
 import { createEmptyModel, type ArchitectureModel } from '../../shared/model/types';
 import { validateModel } from '../../shared/serialization/validation';
 import { applyLayout, deserializeModel } from '../../shared/serialization/yaml';
-import { AiError, type AgentEvent } from '../ai/agent';
-import type { AgentResolution } from '../ai/agentFactory';
+import { AiError, type AgentEvent, type ArchitectureAgent } from '../ai/agent';
+import type { AgentResolution, ResolveAgentOptions } from '../ai/agentFactory';
 import { verifyCodegen } from '../ai/verify';
 import type { Logger } from '../log';
 import { BaselineStore } from '../workspace/BaselineStore';
@@ -59,7 +59,7 @@ export interface PanelDependencies {
   extensionUri: vscode.Uri;
   fileService: AtlasFileService;
   /** Resolved per AI job so provider/setting changes apply without a reload. */
-  resolveAgent: () => Promise<AgentResolution>;
+  resolveAgent: (options?: ResolveAgentOptions) => Promise<AgentResolution>;
   baseline: BaselineStore;
   workspaceFolder: vscode.WorkspaceFolder;
   cwd: string;
@@ -351,17 +351,16 @@ export class ArchitecturePanel {
       return;
     }
     try {
-      const { agent, label: engine } = await this.deps.resolveAgent();
-      this.post({ type: 'ai:status', busy: true, job: 'detect', label: `${label} · ${engine}` });
-      this.deps.logger.info(`Detection started (${label}) via ${engine}.`);
       // Preserve the current layout so re-running detection doesn't reshuffle
       // the canvas — only the architecture content is refreshed.
       const { model: previous } = await this.deps.fileService.read();
-      const model = await agent.detect(
-        this.deps.cwd,
-        (event) => this.relay('detect', event),
-        this.abortController!,
-        previous,
+      const model = await this.runWithEngine('detect', label, (agent) =>
+        agent.detect(
+          this.deps.cwd,
+          (event) => this.relay('detect', event),
+          this.abortController!,
+          previous,
+        ),
       );
       this.deps.logger.info(
         `Detection complete: ${model.nodes.length} components, ${model.edges.length} connections.`,
@@ -589,6 +588,40 @@ export class ArchitecturePanel {
     }
   }
 
+  /**
+   * Resolve an engine and run one AI job with it. If the Claude Code engine
+   * fails to launch and a direct provider key is configured, retry once on
+   * that provider — a broken local CLI install should degrade, not dead-end.
+   */
+  private async runWithEngine<T>(
+    job: AiJob,
+    baseLabel: string,
+    run: (agent: ArchitectureAgent) => Promise<T>,
+  ): Promise<T> {
+    const first = await this.deps.resolveAgent();
+    this.post({ type: 'ai:status', busy: true, job, label: `${baseLabel} · ${first.label}` });
+    try {
+      return await run(first.agent);
+    } catch (error) {
+      const launchFailure =
+        first.engine === 'claude-code' && error instanceof AiError && error.code === 'auth';
+      if (!launchFailure) {
+        throw error;
+      }
+      let fallback: AgentResolution;
+      try {
+        fallback = await this.deps.resolveAgent({ skipClaudeCode: true });
+      } catch {
+        throw error; // nothing to fall back to — surface the original guidance
+      }
+      this.deps.logger.info(
+        `Claude Code engine failed (${(error as Error).message}) — retrying via ${fallback.label}.`,
+      );
+      this.post({ type: 'ai:status', busy: true, job, label: `${baseLabel} · ${fallback.label}` });
+      return await run(fallback.agent);
+    }
+  }
+
   /** Tell the webview which engine (if any) would power the next AI job. */
   private async pushEngineStatus(): Promise<void> {
     try {
@@ -698,16 +731,16 @@ export class ArchitecturePanel {
       return;
     }
     try {
-      const { agent, label: engine } = await this.deps.resolveAgent();
-      this.post({ type: 'ai:status', busy: true, job: 'chat', label: `Thinking… · ${engine}` });
       const { model } = await this.deps.fileService.read();
-      const response = await agent.chat(
-        this.deps.cwd,
-        model,
-        history,
-        message,
-        (text) => this.post({ type: 'chat:token', text }),
-        this.abortController!,
+      const response = await this.runWithEngine('chat', 'Thinking…', (agent) =>
+        agent.chat(
+          this.deps.cwd,
+          model,
+          history,
+          message,
+          (text) => this.post({ type: 'chat:token', text }),
+          this.abortController!,
+        ),
       );
       let proposal: ChangeProposal | undefined;
       if (response.proposal && response.proposal.nodes?.length) {
@@ -764,18 +797,18 @@ export class ArchitecturePanel {
         return;
       }
 
-      const { agent, label: engine } = await this.deps.resolveAgent();
-      this.post({ type: 'ai:status', busy: true, job: 'codegen', label: `Generating code… · ${engine}` });
       this.deps.logger.info(
-        `Code generation started for ${summarizeDelta(delta).length} change(s) via ${engine}.`,
+        `Code generation started for ${summarizeDelta(delta).length} change(s).`,
       );
-      const result = await agent.generateCode(
-        this.deps.cwd,
-        delta,
-        target,
-        instruction,
-        (event) => this.relay('codegen', event),
-        this.abortController!,
+      const result = await this.runWithEngine('codegen', 'Generating code…', (agent) =>
+        agent.generateCode(
+          this.deps.cwd,
+          delta,
+          target,
+          instruction,
+          (event) => this.relay('codegen', event),
+          this.abortController!,
+        ),
       );
       const diff = await getWorkingTreeDiff(this.deps.cwd, result.touchedFiles);
       this.lastApply = { baseline: base, files: result.touchedFiles };

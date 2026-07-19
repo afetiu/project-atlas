@@ -3,9 +3,9 @@
  * a busy/cancel indicator. Kept presentational — all behaviour is delegated to
  * callbacks supplied by the App.
  *
- * There is ONE verb for getting a map — "Map from code" (instant, static).
- * AI enrichment lives behind ⌘K ("Detect with AI") and the empty state, so
- * two near-synonymous buttons never compete for the same intent.
+ * There is ONE verb for getting a map — "Detect with AI". (The old static
+ * "Map from code" produced config-directory noise and is retired from the UI;
+ * the extraction engine still powers drift and the atlas-extract CLI.)
  */
 
 import type { AiStatus } from '../model/useAiSession';
@@ -17,7 +17,7 @@ interface ToolbarProps {
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onMapFromCode: () => void;
+  onDetect: () => void;
   onApplyPending: () => void;
   onCancel: () => void;
 }
@@ -29,7 +29,7 @@ export function Toolbar({
   canRedo,
   onUndo,
   onRedo,
-  onMapFromCode,
+  onDetect,
   onApplyPending,
   onCancel,
 }: ToolbarProps): JSX.Element {
@@ -82,10 +82,10 @@ export function Toolbar({
           <button
             type="button"
             className="atlas-button atlas-button--small"
-            onClick={onMapFromCode}
-            title="Derive the map from the code's imports — instant, no AI. For AI enrichment, run “Detect with AI” from ⌘K."
+            onClick={onDetect}
+            title="Let AI map this repository — components, connections, and intent"
           >
-            Map from code
+            Detect with AI
           </button>
         </>
       )}

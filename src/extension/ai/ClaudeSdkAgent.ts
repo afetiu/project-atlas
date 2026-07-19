@@ -282,10 +282,14 @@ export class ClaudeSdkAgent implements ArchitectureAgent {
     const message = error instanceof Error ? error.message : String(error);
     // The SDK's own advice ("reinstall without --omit=optional") is meaningless
     // to an extension user — translate launch failures into Atlas's options.
-    if (/Native CLI binary|pathToClaudeCodeExecutable|spawn EINVAL|spawn .*claude.* ENOENT/i.test(message)) {
+    if (
+      /Native CLI binary|pathToClaudeCodeExecutable|spawn EINVAL|spawn .*claude.* ENOENT|exited with code/i.test(
+        message,
+      )
+    ) {
       return new AiError(
         'auth',
-        'Atlas could not launch the claude CLI. Install Claude Code and sign in — or store an API key via "Atlas: Set AI API Key" and Atlas will call the API directly instead.',
+        'Atlas could not run the claude CLI (it may be outdated or not signed in — try running `claude` in a terminal). Or store an API key via "Atlas: Set AI API Key" and Atlas will call the API directly instead.',
       );
     }
     return new AiError('failed', `Claude run failed: ${message}`);

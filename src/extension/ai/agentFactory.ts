@@ -138,10 +138,22 @@ export async function decideEngine(input: {
   throw new AiError('auth', SETUP_GUIDANCE);
 }
 
+export interface ResolveAgentOptions {
+  /**
+   * Pretend the claude CLI does not exist — used to fall back to a direct
+   * provider after the Claude Code engine failed to launch (broken/outdated
+   * CLI installs happen; users should not pay for them).
+   */
+  skipClaudeCode?: boolean;
+}
+
 /** Resolve the engine and construct the agent for one AI job. */
-export async function resolveAgent(auth: AuthProvider): Promise<AgentResolution> {
+export async function resolveAgent(
+  auth: AuthProvider,
+  options: ResolveAgentOptions = {},
+): Promise<AgentResolution> {
   const setting = vscode.workspace.getConfiguration('atlas').get<string>('provider') ?? 'auto';
-  const cliPath = findClaudeCli(auth.resolveExecutablePath());
+  const cliPath = options.skipClaudeCode ? undefined : findClaudeCli(auth.resolveExecutablePath());
   const engine = await decideEngine({
     setting,
     cliAvailable: cliPath !== undefined,

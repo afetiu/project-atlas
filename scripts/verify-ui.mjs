@@ -553,7 +553,7 @@ await check('⌘K groups actions, plans, components — verbs first', async () =
   expect(sections[0] === 'Actions', 'Actions section not first');
   expect(sections.includes('Components'), 'Components section missing');
   const firstLabel = await page.locator('.atlas-command__label').first().textContent();
-  expect(firstLabel === 'Map from code', 'first command should be Map from code');
+  expect(firstLabel === 'Detect with AI', 'first command should be Detect with AI');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
 });
@@ -691,7 +691,7 @@ await check('empty map shows the getting-started actions', async () => {
   await page.waitForTimeout(300);
   expect((await page.locator('.atlas-empty').count()) === 1, 'empty state missing');
   expect(
-    (await page.locator('.atlas-empty button:has-text("Map from code")').count()) === 1,
+    (await page.locator('.atlas-empty button:has-text("Detect with AI")').count()) === 1,
     'primary action missing',
   );
 });

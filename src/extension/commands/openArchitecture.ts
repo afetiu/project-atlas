@@ -31,7 +31,7 @@ export function openArchitecture(context: vscode.ExtensionContext, logger: Logge
   ArchitecturePanel.createOrShow({
     extensionUri: context.extensionUri,
     fileService: new AtlasFileService(workspaceFolder),
-    resolveAgent: () => resolveAgent(auth),
+    resolveAgent: (options) => resolveAgent(auth, options),
     baseline: new BaselineStore(context.workspaceState, workspaceFolder),
     workspaceFolder,
     cwd: workspaceFolder.uri.fsPath,
