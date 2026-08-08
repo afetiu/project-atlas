@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.3 — 2026-08-08
+
+- **New: `atlas-studio`**, a standalone visual canvas — `npx -p
+  atlas-architecture-mcp atlas-studio /path/to/repo` opens the same webview
+  canvas the extension ships (drag-and-drop editing, Detect with AI, chat,
+  apply/codegen, drift/sync status, plans and ADRs, time-lapse history) in a
+  browser, with no VS Code or Cursor involved. Backed by a small local
+  HTTP+WebSocket server; AI auth is env-var only for now (`ANTHROPIC_API_KEY`
+  / `OPENAI_API_KEY` / `GEMINI_API_KEY`, or an existing `claude` CLI login) —
+  see the `atlas-architecture-mcp` README for the full env-var reference and
+  known v1 gaps.
+
 ## 0.2.2 — 2026-08-08
 
 - Fixed Claude Code detection on Windows: current `@anthropic-ai/claude-code`
