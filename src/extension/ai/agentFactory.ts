@@ -7,7 +7,7 @@
  * VS Code configuration and constructs SDK clients.
  */
 
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { delimiter, dirname, join } from 'path';
 
 import * as vscode from 'vscode';
@@ -90,16 +90,36 @@ export function findClaudeCli(
 /**
  * Node refuses to spawn `.cmd`/`.ps1` files directly (EINVAL, CVE-2024-27980
  * hardening), so an npm-installed `claude` shim cannot be handed to the Agent
- * SDK as-is. Resolve through the shim to the real JS entry point — the SDK
- * runs `.js` paths via Node itself. Real executables pass through unchanged.
+ * SDK as-is. Resolve through the shim to its real entry point instead — read
+ * the target from the wrapped package's own `package.json#bin` rather than
+ * assuming a layout, since the package has shipped both a plain `cli.js` and
+ * (now) a native `bin/claude.exe`. Real executables pass through unchanged.
  */
 function spawnablePath(candidate: string, platform: NodeJS.Platform): string | undefined {
   if (platform !== 'win32' || !/\.(cmd|ps1|bat)$/i.test(candidate)) {
     return candidate;
   }
-  // npm shim layout: <dir>/claude.cmd wraps <dir>/node_modules/@anthropic-ai/claude-code/cli.js
-  const cliJs = join(dirname(candidate), 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
+  const pkgDir = join(dirname(candidate), 'node_modules', '@anthropic-ai', 'claude-code');
+  const declaredBin = readDeclaredBin(pkgDir);
+  if (declaredBin && existsSync(declaredBin)) {
+    return declaredBin;
+  }
+  // Fall back to the legacy layout in case package.json is unreadable/unexpected.
+  const cliJs = join(pkgDir, 'cli.js');
   return existsSync(cliJs) ? cliJs : undefined;
+}
+
+/** Resolve the wrapped claude-code package's declared `bin` entry point, if readable. */
+function readDeclaredBin(pkgDir: string): string | undefined {
+  try {
+    const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as {
+      bin?: string | Record<string, string>;
+    };
+    const bin = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.claude;
+    return typeof bin === 'string' ? join(pkgDir, bin) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Boolean convenience over {@link findClaudeCli}. */

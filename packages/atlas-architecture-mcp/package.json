@@ -1,6 +1,6 @@
 {
   "name": "atlas-architecture-mcp",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Headless Atlas: the MCP server and rules CLI for the Atlas architecture workspace — use atlas.yaml from Claude Code, Cursor, Windsurf, Gemini CLI, or Codex without VS Code installed.",
   "license": "MIT",
   "repository": {

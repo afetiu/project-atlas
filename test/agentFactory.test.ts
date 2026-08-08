@@ -110,9 +110,47 @@ describe('claudeCliAvailable', () => {
 
 describe('findClaudeCli on Windows', () => {
   // Node cannot spawn .cmd/.ps1 directly (EINVAL) — the factory must resolve
-  // npm shims to the real cli.js, and skip shims it cannot resolve.
+  // npm shims to the real entry point, and skip shims it cannot resolve.
   it('resolves an npm claude.cmd shim to the underlying cli.js', () => {
     const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-'));
+    try {
+      const pkgDir = join(dir, 'node_modules', '@anthropic-ai', 'claude-code');
+      const cliJs = join(pkgDir, 'cli.js');
+      mkdirSync(pkgDir, { recursive: true });
+      writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ bin: 'cli.js' }));
+      writeFileSync(join(dir, 'claude.cmd'), '@echo off\r\n');
+      writeFileSync(cliJs, '// cli\n');
+
+      assert.equal(findClaudeCli(undefined, dir, 'win32'), cliJs);
+      assert.equal(findClaudeCli(join(dir, 'claude.cmd'), undefined, 'win32'), cliJs);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Real-world regression: current claude-code releases declare
+  // "bin": { "claude": "bin/claude.exe" } — a native binary, not a cli.js.
+  // The old hardcoded cli.js probe made Atlas report "could not run the
+  // claude CLI" even though `claude` worked fine from a normal terminal.
+  it('resolves an npm claude.cmd shim to a declared native bin/claude.exe', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-native-'));
+    try {
+      const pkgDir = join(dir, 'node_modules', '@anthropic-ai', 'claude-code');
+      const nativeExe = join(pkgDir, 'bin', 'claude.exe');
+      mkdirSync(join(pkgDir, 'bin'), { recursive: true });
+      writeFileSync(join(pkgDir, 'package.json'), JSON.stringify({ bin: { claude: 'bin/claude.exe' } }));
+      writeFileSync(join(dir, 'claude.cmd'), '@echo off\r\n');
+      writeFileSync(nativeExe, '');
+
+      assert.equal(findClaudeCli(undefined, dir, 'win32'), nativeExe);
+      assert.equal(findClaudeCli(join(dir, 'claude.cmd'), undefined, 'win32'), nativeExe);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to cli.js when package.json is missing or unreadable', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlas-shim-nopkg-'));
     try {
       const cliJs = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js');
       mkdirSync(join(dir, 'node_modules', '@anthropic-ai', 'claude-code'), { recursive: true });
@@ -120,7 +158,6 @@ describe('findClaudeCli on Windows', () => {
       writeFileSync(cliJs, '// cli\n');
 
       assert.equal(findClaudeCli(undefined, dir, 'win32'), cliJs);
-      assert.equal(findClaudeCli(join(dir, 'claude.cmd'), undefined, 'win32'), cliJs);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2 — 2026-08-08
+
+- Fixed Claude Code detection on Windows: current `@anthropic-ai/claude-code`
+  npm releases ship a native `bin/claude.exe` (declared in the package's own
+  `package.json#bin`), not the `cli.js` Atlas's shim-resolver assumed. Atlas
+  now reads the package's declared bin entry instead of hardcoding a path, so
+  it stops reporting "could not run the claude CLI" when the CLI works fine
+  from a terminal.
+
 ## 0.2.1 — 2026-08-08
 
 - Renamed the extension id from `atlas` to `atlas-architecture-workspace`

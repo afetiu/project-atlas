@@ -2,7 +2,7 @@
   "name": "atlas-architecture-workspace",
   "displayName": "Atlas — Architecture Workspace",
   "description": "A visual architecture workspace where the architecture model is the source of truth. AI maps your repo, you reshape it on a canvas, agents keep code and architecture in sync.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "afetiu",
   "license": "MIT",
   "repository": {
