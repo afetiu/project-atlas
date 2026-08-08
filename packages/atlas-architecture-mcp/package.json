@@ -1,7 +1,7 @@
 {
   "name": "atlas-architecture-mcp",
   "version": "0.2.2",
-  "description": "Headless Atlas: the MCP server and rules CLI for the Atlas architecture workspace — use atlas.yaml from Claude Code, Cursor, Windsurf, Gemini CLI, or Codex without VS Code installed.",
+  "description": "Headless Atlas: the MCP server, rules CLI, and standalone visual studio for the Atlas architecture workspace — use atlas.yaml from Claude Code, Cursor, Windsurf, Gemini CLI, or Codex, or open the canvas with `npx -p atlas-architecture-mcp atlas-studio`, without VS Code installed.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,7 +21,8 @@
   "bin": {
     "atlas-mcp": "bin/atlas-mcp.mjs",
     "atlas-check": "bin/atlas-check.mjs",
-    "atlas-diff": "bin/atlas-diff.mjs"
+    "atlas-diff": "bin/atlas-diff.mjs",
+    "atlas-studio": "bin/atlas-studio.mjs"
   },
   "files": [
     "bin",

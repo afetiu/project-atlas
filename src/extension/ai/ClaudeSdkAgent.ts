@@ -24,7 +24,7 @@ import {
   type ArchitectureAgent,
   type CodegenResult,
 } from './agent';
-import type { AuthProvider } from './AuthProvider';
+import type { AiAuth } from './AuthProvider';
 import { buildChatSystemPrompt, buildCodegenPrompt, buildDetectionPrompt } from './prompts';
 
 /**
@@ -64,7 +64,7 @@ export class ClaudeSdkAgent implements ArchitectureAgent {
    * not shipped in the VSIX, so this must always be passed when known.
    */
   constructor(
-    private readonly auth: AuthProvider,
+    private readonly auth: AiAuth,
     private readonly executablePath?: string,
   ) {}
 

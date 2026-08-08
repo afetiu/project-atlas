@@ -16,6 +16,21 @@ import * as vscode from 'vscode';
 
 export type AiProviderId = 'anthropic' | 'openai' | 'gemini';
 
+/**
+ * The auth surface the AI layer depends on. `AuthProvider` (below) is the VS
+ * Code implementation; a host without `vscode` (e.g. the standalone studio
+ * server) provides its own implementation of the same shape.
+ */
+export interface AiAuth {
+  getApiKey(provider?: AiProviderId): Promise<string | undefined>;
+  setApiKey(provider: AiProviderId, key: string): Promise<void>;
+  clearApiKey(provider: AiProviderId): Promise<void>;
+  firstConfiguredProvider(): Promise<AiProviderId | undefined>;
+  buildEnv(): Promise<Record<string, string | undefined>>;
+  resolveExecutablePath(): string | undefined;
+  resolveModel(provider?: AiProviderId): string | undefined;
+}
+
 export const PROVIDER_LABELS: Record<AiProviderId, string> = {
   anthropic: 'Anthropic (Claude)',
   openai: 'OpenAI',
@@ -38,7 +53,7 @@ const ENV_KEYS: Record<AiProviderId, string[]> = {
   gemini: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
 };
 
-export class AuthProvider {
+export class AuthProvider implements AiAuth {
   constructor(private readonly secrets: vscode.SecretStorage) {}
 
   async getApiKey(provider: AiProviderId = 'anthropic'): Promise<string | undefined> {

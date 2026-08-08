@@ -13,7 +13,13 @@ const pkgDist = join(root, 'packages', 'atlas-architecture-mcp', 'dist');
 
 execSync('npm run build', { cwd: root, stdio: 'inherit' });
 mkdirSync(pkgDist, { recursive: true });
-for (const file of ['mcp-server.mjs', 'atlas-check.mjs', 'atlas-diff.mjs']) {
+for (const file of ['mcp-server.mjs', 'atlas-check.mjs', 'atlas-diff.mjs', 'atlas-studio.mjs']) {
   copyFileSync(join(root, 'dist', file), join(pkgDist, file));
+}
+// atlas-studio serves the same webview bundle the extension ships, alongside its own dist/.
+const webviewDist = join(pkgDist, 'webview');
+mkdirSync(webviewDist, { recursive: true });
+for (const file of ['webview.js', 'webview.css']) {
+  copyFileSync(join(root, 'dist', file), join(webviewDist, file));
 }
 console.log('[atlas] npm package assembled: packages/atlas-architecture-mcp');

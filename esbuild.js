@@ -81,6 +81,16 @@ const mcpConfig = {
 };
 
 /** @type {import('esbuild').BuildOptions} */
+const studioConfig = {
+  ...common,
+  entryPoints: ['src/studio/server.ts'],
+  outfile: 'dist/atlas-studio.mjs',
+  platform: 'node',
+  format: 'esm',
+  banner: mcpConfig.banner, // same require()/__dirname shim — `ws` is CJS
+};
+
+/** @type {import('esbuild').BuildOptions} */
 const cliConfig = {
   ...common,
   entryPoints: ['src/cli/check.ts'],
@@ -105,7 +115,15 @@ const extractCliConfig = {
 };
 
 async function build() {
-  const configs = [extensionConfig, webviewConfig, mcpConfig, cliConfig, diffCliConfig, extractCliConfig];
+  const configs = [
+    extensionConfig,
+    webviewConfig,
+    mcpConfig,
+    studioConfig,
+    cliConfig,
+    diffCliConfig,
+    extractCliConfig,
+  ];
   if (watch) {
     const contexts = await Promise.all(configs.map((c) => esbuild.context(c)));
     await Promise.all(contexts.map((ctx) => ctx.watch()));
