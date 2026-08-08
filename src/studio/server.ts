@@ -17,6 +17,7 @@ import { fileURLToPath } from 'url';
 
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
 
+import { findClaudeCli, ENGINE_LABELS } from '../extension/ai/engineResolution';
 import { resolveAgentStandalone } from './agentResolution';
 import { StandaloneAuth } from './StandaloneAuth';
 import { StandaloneLogger } from './StandaloneLogger';
@@ -72,6 +73,7 @@ export async function startStudio(options: StudioOptions): Promise<void> {
   const url = `http://localhost:${options.port}`;
   logger.info(`Serving ${options.cwd}`);
   console.log(`atlas-studio: ${options.cwd}`);
+  await printAuthStatus(auth);
   console.log(`atlas-studio: ${url}`);
   if (options.open) {
     openBrowser(url);
@@ -133,6 +135,29 @@ function buildHtml(nonce: string): string {
     <script nonce="${nonce}" src="/webview.js"></script>
   </body>
 </html>`;
+}
+
+/**
+ * Print whether an AI engine is actually usable, right in the terminal that
+ * launched the server — not just buried in the browser UI. This is the first
+ * thing a cold `npx atlas-studio` run shows, so "you need a key or a claude
+ * login" reaches people before they've even opened the canvas.
+ */
+async function printAuthStatus(auth: StandaloneAuth): Promise<void> {
+  const cliPath = findClaudeCli(auth.resolveExecutablePath());
+  if (cliPath) {
+    console.log(`atlas-studio: AI ready — using ${ENGINE_LABELS['claude-code']} (${cliPath})`);
+    return;
+  }
+  const provider = await auth.firstConfiguredProvider();
+  if (provider) {
+    console.log(`atlas-studio: AI ready — using ${ENGINE_LABELS[provider]} (from the environment)`);
+    return;
+  }
+  console.log('atlas-studio: ⚠ no AI engine detected — "Detect with AI" and Chat need one of:');
+  console.log('atlas-studio:   - a `claude` CLI login (run `claude` in a terminal to check), or');
+  console.log('atlas-studio:   - ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY set in this shell');
+  console.log('atlas-studio: The canvas still opens either way — you can design by hand without AI.');
 }
 
 function openBrowser(url: string): void {
