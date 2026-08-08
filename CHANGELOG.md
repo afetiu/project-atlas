@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 2026-08-08
+
+- Renamed the extension id from `atlas` to `atlas-architecture-workspace`
+  (`afetiu.atlas-architecture-workspace`) — the Marketplace rejected the bare
+  `atlas` name as a collision. Display name is unchanged.
+
 ## 0.2.0 — 2026-07-18
 
 The multi-provider, multi-agent release: every AI feature now works without
