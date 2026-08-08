@@ -42,14 +42,17 @@ jobs:
 
       - name: Publish to VS Code Marketplace
         if: env.VSCE_PAT != ''
+        continue-on-error: true
         run: npx --yes @vscode/vsce publish --packagePath atlas.vsix -p "$VSCE_PAT"
 
       - name: Publish to Open VSX
         if: env.OVSX_PAT != ''
+        continue-on-error: true
         run: npx --yes ovsx publish atlas.vsix -p "$OVSX_PAT"
 
       - name: Publish atlas-architecture-mcp to npm
         if: env.NPM_TOKEN != ''
+        continue-on-error: true
         working-directory: packages/atlas-architecture-mcp
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -58,6 +61,7 @@ jobs:
           npm publish --access public
 
       - name: GitHub release with VSIX
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
